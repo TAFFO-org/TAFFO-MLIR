@@ -14,6 +14,10 @@ def TaffoDialect : Dialect {
         description here.
     }];
     let cppNamespace = "::mlir::taffo";
+
+    let extraClassDeclaration = [{
+        void registerTypes();
+    }];
 }
 
 #endif // TAFFO_DIALECT

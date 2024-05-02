@@ -20,9 +20,9 @@ def Taffo_Real : Taffo_Type<"RealProblem", "real"> {
     let description = [{
         real type description.
     }];
-    let parameters = (ins "APFloat":$precision,
-                          "APFloat":$min,
-                          "APFloat":$max);
+    let parameters = (ins APFloatParameter<"precision">:$precision,
+                          APFloatParameter<"min">:$min,
+                          APFloatParameter<"max">:$max);
 
     //TODO: fix assembly format
     let assemblyFormat = [{

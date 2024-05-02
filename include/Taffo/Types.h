@@ -1,4 +1,3 @@
-
 #ifndef TAFFO_TAFFOTYPES_H
 #define TAFFO_TAFFOTYPES_H
 
@@ -7,7 +6,6 @@
 #include "llvm/ADT/APFloat.h"
 
 #define GET_TYPEDEF_CLASSES
-
 #include "Taffo/TaffoTypes.h.inc"
 
 #endif // TAFFO_TAFFOTYPES_H

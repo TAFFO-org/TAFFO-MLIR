@@ -10,6 +10,4 @@
 #include "Taffo/Ops.h"
 #include "Taffo/TaffoDialect.h.inc"
 
-#include "llvm/ADT/APFloat.h"
-
 #endif // TAFFO_TAFFODIALECT_H

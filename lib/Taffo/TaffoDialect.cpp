@@ -1,4 +1,5 @@
 #include "Taffo/TaffoDialect.h"
+#include "Taffo/Types.h"
 
 using namespace ::mlir::taffo;
 
@@ -9,14 +10,11 @@ using namespace ::mlir::taffo;
 //===----------------------------------------------------------------------===//
 namespace mlir::taffo {
   void TaffoDialect::initialize() {
+    registerTypes();
+
     addOperations<
   #define GET_OP_LIST
   #include "Taffo/Taffo.cpp.inc"
-        >();
-
-    addTypes<
-  #define GET_TYPEDEF_LIST
-  #include "Taffo/TaffoTypes.cpp.inc"
         >();
   }
 }
