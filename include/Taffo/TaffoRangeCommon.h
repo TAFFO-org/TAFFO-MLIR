@@ -5,13 +5,13 @@
 namespace taffo {
 // using a template to support both affine and interval arithmetic
 template <typename T>
-T inferAssign(ArrayRef<T> argRanges);
+T inferAssign(llvm::ArrayRef<T> argRanges);
 
 template <typename T>
-T inferAdd(ArrayRef<T> argRanges);
+T inferAdd(llvm::ArrayRef<T> argRanges);
 
 template <typename T>
-T inferMult(ArrayRef<T> argRanges);
+T inferMult(llvm::ArrayRef<T> argRanges);
 
 } // namespace taffo
 
