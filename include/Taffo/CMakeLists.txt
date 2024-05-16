@@ -1,6 +1,11 @@
 add_mlir_dialect(Taffo taffo)
 add_mlir_doc(TaffoOps TaffoDialect Taffo/ -gen-dialect-doc)
 
+#help??
+set(LLVM_TARGET_DEFINITIONS InferTaffoRangeNtvInterface.td)
+mlir_tablegen(InferTaffoRangeNtvInterface.h.inc -gen-op-interface-decls)
+mlir_tablegen(InferTaffoRangeNtvInterface.cpp.inc -gen-op-interface-defs)
+
 #set(LLVM_TARGET_DEFINITIONS TaffoOps.td)
 #mlir_tablegen(TaffoOps.h.inc -gen-op-decls)
 #mlir_tablegen(TaffoOps.cpp.inc -gen-op-defs)

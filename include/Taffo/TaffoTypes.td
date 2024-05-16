@@ -15,7 +15,7 @@ class Taffo_Type<string name, string typeMnemonic, list<Trait> traits = []>
     let mnemonic = typeMnemonic;
 }
 
-def Taffo_Real : Taffo_Type<"RealProblem", "real"> {
+def Taffo_Real : Taffo_Type<"Real", "real"> {
     let summary = "Real type, can represent any number";
     let description = [{
         real type description.
