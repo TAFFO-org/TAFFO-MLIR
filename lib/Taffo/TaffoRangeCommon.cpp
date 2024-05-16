@@ -30,9 +30,6 @@ namespace taffo {
     APFloat a1b0 = argRanges[0].second * argRanges[1].first;
     APFloat a1b1 = argRanges[0].second * argRanges[1].second;
 
-    APFloat min = std::min_element({a0b0, a0b1, a1b0, a1b1});
-    APFloat max = std::max_element({a0b0, a0b1, a1b0, a1b1});
-
-    return std::pair<APFloat, APFloat>(min, max);
+    return std::minmax({a0b0, a0b1, a1b0, a1b1});
   }
 }
