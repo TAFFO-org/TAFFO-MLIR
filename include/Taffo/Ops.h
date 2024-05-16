@@ -1,6 +1,7 @@
 #ifndef TAFFO_OPS_H
 #define TAFFO_OPS_H
 
+#include "Taffo/InferTaffoRangeNtvInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
