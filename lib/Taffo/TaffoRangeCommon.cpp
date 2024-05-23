@@ -4,26 +4,29 @@
 using namespace ::llvm;
 
 namespace taffo {
+
+  using NtvRange = std::pair<APFloat, APFloat>;
+
   template<>
-  std::pair<APFloat, APFloat> inferAssign(ArrayRef<std::pair<APFloat, APFloat>> argRanges) {
+  NtvRange inferAssign(ArrayRef<NtvRange> argRanges) {
     assert(argRanges[0].first <= argRanges[0].second);
     return argRanges[0];
   }
 
 
   template<>
-  std::pair<APFloat, APFloat> inferAdd(ArrayRef<std::pair<APFloat, APFloat>> argRanges) {
+  NtvRange inferAdd(ArrayRef<NtvRange> argRanges) {
     assert(argRanges[0].first <= argRanges[0].second);
     assert(argRanges[1].first <= argRanges[1].second);
 
     APFloat min = argRanges[0].first + argRanges[1].first;
     APFloat max = argRanges[0].second + argRanges[1].second;
 
-    return std::pair<APFloat, APFloat>(min, max);
+    return NtvRange(min, max);
   }
 
   template<>
-  std::pair<APFloat, APFloat> inferMult(ArrayRef<std::pair<APFloat, APFloat>> argRanges) {
+  NtvRange inferMult(ArrayRef<NtvRange> argRanges) {
     // unrolled outer product
     APFloat a0b0 = argRanges[0].first * argRanges[1].first;
     APFloat a0b1 = argRanges[0].first * argRanges[1].second;

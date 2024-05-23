@@ -17,7 +17,7 @@ let methods = [
     }],
     "void", "inferTaffoRanges", (ins
     "::llvm::ArrayRef<std::pair<::llvm::APFloat,::llvm::APFloat>>":$argRanges,
-    "::taffo::SetTaffoRangeFn":$setResultRanges)
+    "::mlir::taffo::SetTaffoRangeFn":$setResultRanges)
   >];
 }
 

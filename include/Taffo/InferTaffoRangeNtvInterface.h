@@ -6,6 +6,7 @@
 #define TAFFO_INFERTAFFORANGENTVINTERFACE_H
 
 #include "mlir/IR/OpDefinition.h"
+#include "llvm/ADT/APFloat.h"
 
 namespace mlir::taffo {
 

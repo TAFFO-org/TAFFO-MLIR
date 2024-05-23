@@ -3,6 +3,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 namespace taffo {
+
 // using a template to support both affine and interval arithmetic
 template <typename T>
 T inferAssign(llvm::ArrayRef<T> argRanges);
