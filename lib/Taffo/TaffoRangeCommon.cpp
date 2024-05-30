@@ -1,11 +1,9 @@
 #include "Taffo/TaffoRangeCommon.h"
-#include "llvm/ADT/APFloat.h"
 
 using namespace ::llvm;
 
 namespace taffo {
 
-  using NtvRange = std::pair<APFloat, APFloat>;
 
   template<>
   NtvRange inferAssign(ArrayRef<NtvRange> argRanges) {

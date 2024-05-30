@@ -19,32 +19,33 @@
 #include <cassert>
 #include <optional>
 #include <utility>
+#include <llvm/ADT/APFloat.h>
 
 using namespace mlir;
 using namespace mlir::dataflow;
+using namespace mlir::taffo;
 
-static NtvRange TaffoValueRange::getMaxRange(Value value) {
+using NtvRange = ::taffo::NtvRange;
 
-  assert(value.getType().isFloatingPointTy());
+TaffoValueRange TaffoValueRange::getMaxRange(Value value) {
 
-  // is this always const?
-  auto sem = value.getType().getFltSemantics();
+  // placeholder, needs to work based on annotations in the future
+  const llvm::fltSemantics sem = APFloat::IEEEdouble();
 
   // should this return [-max, max] instead?
-  return NtvRange(APFloat::getInf(sem, true),
-                  APFloat::getInf(sem, false);
+  return TaffoValueRange(NtvRange(APFloat::getInf(sem, true),
+                                  APFloat::getInf(sem, false)));
 }
-
-
 
 void TaffoRangeLattice::onUpdate(DataFlowSolver *solver) const {
   Lattice::onUpdate(solver);
 
   // If the range can be narrowed to a constant, update the constant
   // value of the SSA value.
-  NtvRange range = getValue().getValue();
+  const NtvRange range = getValue().getValue();
   std::optional<APFloat> constant =
-      range.first == range.second ? range.first : std::nullopt;
+      range.first == range.second ? std::optional<APFloat>(range.first)
+                                  : std::nullopt;
 
   auto value = point.get<Value>();
   auto *cv = solver->getOrCreateState<Lattice<ConstantValue>>(value);
@@ -94,6 +95,11 @@ void TaffoNtvRangeAnalysis::visitOperation(
 
     ChangeResult changed = lattice->join(TaffoValueRange{attrs});
 
+    /*
+     * for now we ignore loop variant ranges, as those will depend
+     * on trip count estimation to be performed before VRA
+     *
+    // TODO: propagate trip count estimation to VRA
     // Catch loop results with loop variant bounds and conservatively make
     // them [-inf, inf] so we don't circle around infinitely often (because
     // the dataflow analysis in MLIR doesn't attempt to work out trip counts
@@ -106,10 +112,11 @@ void TaffoNtvRangeAnalysis::visitOperation(
       //LLVM_DEBUG(llvm::dbgs() << "Loop variant loop result detected\n");
       changed |= lattice->join(TaffoValueRange::getMaxRange(v));
     }
+    */
     propagateIfChanged(lattice, changed);
   };
 
-  inferrable.inferResultRanges(argRanges, joinCallback);
+  inferrable.inferTaffoRanges(argRanges, joinCallback);
 }
 
 void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
@@ -136,10 +143,15 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
 
       //LLVM_DEBUG(llvm::dbgs() << "Inferred range " << attrs << "\n");
       TaffoRangeLattice *lattice = argLattices[arg.getArgNumber()];
-      NtvRange oldRange = lattice->getValue();
+      TaffoValueRange oldRange = lattice->getValue();
 
       ChangeResult changed = lattice->join(TaffoValueRange{attrs});
 
+      /*
+       * for now we ignore loop variant ranges, as those will depend
+       * on trip count estimation to be performed before VRA
+       *
+      // TODO: propagate trip count estimation to VRA
       // Catch loop results with loop variant bounds and conservatively make
       // them [-inf, inf] so we don't circle around infinitely often (because
       // the dataflow analysis in MLIR doesn't attempt to work out trip counts
@@ -152,10 +164,12 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
         //LLVM_DEBUG(llvm::dbgs() << "Loop variant loop result detected\n");
         changed |= lattice->join(TaffoValueRange::getMaxRange(v));
       }
+
+       */
       propagateIfChanged(lattice, changed);
     };
 
-    inferrable.inferResultRanges(argRanges, joinCallback);
+    inferrable.inferTaffoRanges(argRanges, joinCallback);
     return;
   }
 

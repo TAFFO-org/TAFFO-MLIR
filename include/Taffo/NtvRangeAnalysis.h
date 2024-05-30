@@ -15,7 +15,9 @@ namespace dataflow {
 class TaffoValueRange {
 public:
 
-  static NtvRange getMaxRange(Value value);
+  using NtvRange = ::taffo::NtvRange;
+
+  static TaffoValueRange getMaxRange(Value value);
 
   TaffoValueRange(std::optional<NtvRange> value = std::nullopt)
       : value(std::move(value)) {}
@@ -31,22 +33,31 @@ public:
   }
 
   /// Compare two ranges.
-  bool operator==(const NtvRange &rhs) const {
+  bool operator==(const TaffoValueRange &rhs) const {
     return value == rhs.value;
   }
 
   /// Take the union of two ranges.
-  static TaffoValueRange join(const NtvRange &lhs,
-                              const NtvRange &rhs) {
+  static TaffoValueRange join(const TaffoValueRange &lhs,
+                              const TaffoValueRange &rhs) {
     if (lhs.isUninitialized())
       return rhs;
     if (rhs.isUninitialized())
       return lhs;
-    return std::minmax({lhs.first, lhs.second, rhs.first, rhs.second})};
+
+    NtvRange lhs_range = lhs.getValue();
+    NtvRange rhs_range = rhs.getValue();
+    return TaffoValueRange{std::minmax({lhs_range.first, lhs_range.second,
+                                        rhs_range.first, rhs_range.second})};
   }
 
   /// Print the value range.
-  void print(raw_ostream &os) const { os << value; }
+  void print(raw_ostream &os) const {
+    os << "taffo range: [";
+    getValue().first.print(os);
+    os << ", ";
+    getValue().second.print(os);
+    os << "]"; }
 
 private:
   /// The known integer value range.
@@ -71,7 +82,7 @@ public:
   using SparseForwardDataFlowAnalysis::SparseForwardDataFlowAnalysis;
 
   /// At an entry point, we cannot reason about value ranges.
-  void setToEntryState(IntegerValueRangeLattice *lattice) override {
+  void setToEntryState(TaffoRangeLattice *lattice) override {
     propagateIfChanged(lattice, lattice->join(TaffoValueRange::getMaxRange(
                                     lattice->getPoint())));
   }
