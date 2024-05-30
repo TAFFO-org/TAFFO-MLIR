@@ -1,6 +1,7 @@
 name: Build and test
-
-on: [push, pull_request]
+# change at a later date to
+# on: [push, pull_request]
+on: []
 
 env:
   LLVM_COMMIT: 7dad7ab3c0d29fb9c6b0cf591889789a3cdbcc0a
