@@ -20,7 +20,6 @@
 #include "llvm/Support/ToolOutputFile.h"
 
 #include "Taffo/TaffoDialect.h"
-#include "Taffo/TaffoDialect.cpp.inc"
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();

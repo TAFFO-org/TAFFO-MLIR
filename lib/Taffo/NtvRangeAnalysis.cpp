@@ -29,12 +29,11 @@ using NtvRange = ::taffo::NtvRange;
 
 TaffoValueRange TaffoValueRange::getMaxRange(Value value) {
 
-  // placeholder, needs to work based on annotations in the future
-  const llvm::fltSemantics sem = APFloat::IEEEdouble();
-
+  // placeholder, needs to work based on annotations of Value in the future
+  // instead of defaulting to APFloat::IEEEdouble()
   // should this return [-max, max] instead?
-  return TaffoValueRange(NtvRange(APFloat::getInf(sem, true),
-                                  APFloat::getInf(sem, false)));
+  return TaffoValueRange(NtvRange(APFloat::getInf(APFloat::IEEEdouble(), true),
+                                  APFloat::getInf(APFloat::IEEEdouble(), false)));
 }
 
 void TaffoRangeLattice::onUpdate(DataFlowSolver *solver) const {
