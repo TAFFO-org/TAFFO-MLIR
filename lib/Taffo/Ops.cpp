@@ -10,6 +10,8 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/ScopeExit.h"
 
+#include "Taffo/InferTaffoRangeNtvInterface.h"
+#include "Taffo/TaffoRangeCommon.h"
 #include "llvm/ADT/APFloat.h"
 
 using namespace ::mlir;
@@ -24,13 +26,13 @@ namespace mlir::taffo
     llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
     mlir::taffo::SetTaffoRangeFn setResultRanges)
   {
-   llvm_unreachable("Not implemented");
+    setResultRange(getResult(), inferAssign(argRanges));
   }
 
   void AssignOp::inferTaffoRanges(
      llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
      mlir::taffo::SetTaffoRangeFn setResultRanges)
   {
-   llvm_unreachable("Not implemented");
+    setResultRange(getResult(), inferAdd(argRanges));
   }
 }
