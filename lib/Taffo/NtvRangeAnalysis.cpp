@@ -25,8 +25,6 @@ using namespace mlir;
 using namespace mlir::dataflow;
 using namespace mlir::taffo;
 
-using NtvRange = ::taffo::NtvRange;
-
 TaffoValueRange TaffoValueRange::getMaxRange(Value value) {
 
   // placeholder, needs to work based on annotations of Value in the future

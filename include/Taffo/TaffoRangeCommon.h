@@ -4,7 +4,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/APFloat.h"
 
-namespace taffo {
+namespace mlir::taffo {
 
 // range type for intervarl arithmetic
 using NtvRange = std::pair<::llvm::APFloat, ::llvm::APFloat>;

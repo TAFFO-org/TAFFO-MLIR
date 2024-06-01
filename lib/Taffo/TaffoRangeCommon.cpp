@@ -2,7 +2,7 @@
 
 using namespace ::llvm;
 
-namespace taffo {
+namespace mlir::taffo {
 
 
   template<>

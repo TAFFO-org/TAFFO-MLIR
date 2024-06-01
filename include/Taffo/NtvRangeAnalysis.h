@@ -15,7 +15,7 @@ namespace dataflow {
 class TaffoValueRange {
 public:
 
-  using NtvRange = ::taffo::NtvRange;
+  using NtvRange = mlir::taffo::NtvRange;
 
   static TaffoValueRange getMaxRange(Value value);
 

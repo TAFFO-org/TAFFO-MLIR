@@ -5,6 +5,7 @@ add_mlir_dialect_library(MLIRTaffo
         InferTaffoRangeNtvInterface.cpp
         TaffoRangeCommon.cpp
         NtvRangeAnalysis.cpp
+        NtvRangeImpls.cpp
 
         ADDITIONAL_HEADER_DIRS
         ${PROJECT_SOURCE_DIR}/include/Taffo
