@@ -17,3 +17,20 @@ using namespace ::mlir::taffo;
 
 #define GET_OP_CLASSES
 #include "Taffo/Taffo.cpp.inc"
+
+namespace mlir::taffo
+{
+  void AddOp::inferTaffoRanges(
+    llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
+    mlir::taffo::SetTaffoRangeFn setResultRanges)
+  {
+   llvm_unreachable("Not implemented");
+  }
+
+  void AssignOp::inferTaffoRanges(
+     llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
+     mlir::taffo::SetTaffoRangeFn setResultRanges)
+  {
+   llvm_unreachable("Not implemented");
+  }
+}
