@@ -1,7 +1,3 @@
-//
-// Created by Paolo on 22/05/2024.
-//
-
 #ifndef TAFFO_NTVRANGEANALYSIS_H
 #define TAFFO_NTVRANGEANALYSIS_H
 
