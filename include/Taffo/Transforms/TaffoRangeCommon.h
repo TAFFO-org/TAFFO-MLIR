@@ -1,5 +1,5 @@
-#ifndef TAFFO_TAFFORANGECOMMON_H
-#define TAFFO_TAFFORANGECOMMON_H
+#ifndef TAFFO_TRANSFORMS_TAFFORANGECOMMON_H
+#define TAFFO_TRANSFORMS_TAFFORANGECOMMON_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/APFloat.h"
@@ -21,4 +21,4 @@ T inferMult(llvm::ArrayRef<T> argRanges);
 
 } // namespace taffo
 
-#endif // TAFFO_TAFFORANGECOMMON_H
+#endif // TAFFO_TRANSFORMS_TAFFORANGECOMMON_H

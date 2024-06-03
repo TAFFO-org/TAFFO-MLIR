@@ -1,5 +1,5 @@
-#include "Taffo/Types.h"
-#include "Taffo/TaffoDialect.h"
+#include "Taffo/Dialect/Types.h"
+#include "Taffo/Dialect/TaffoDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/BuiltinDialect.h"
@@ -30,7 +30,7 @@ struct mlir::FieldParser<APFloat> {
 //===---------------------------------------------------------------------===//
 
 #define GET_TYPEDEF_CLASSES
-#include "Taffo/TaffoTypes.cpp.inc"
+#include "Taffo/Dialect/TaffoTypes.cpp.inc"
 
 //===---------------------------------------------------------------------===//
 // Taffo dialect
@@ -42,7 +42,7 @@ namespace mlir::taffo
   {
     addTypes<
 #define GET_TYPEDEF_LIST
-#include "Taffo/TaffoTypes.cpp.inc"
+#include "Taffo/Dialect/TaffoTypes.cpp.inc"
         >();
   }
 }

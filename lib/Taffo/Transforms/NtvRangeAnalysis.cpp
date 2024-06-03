@@ -1,7 +1,7 @@
 // includes copied from mlir/Analysis/DataFlow/IntegerRangeAnalysis.cpp
 // might want to clean up later
 
-#include "Taffo/NtvRangeAnalysis.h"
+#include "Taffo/Transforms/NtvRangeAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Analysis/DataFlowFramework.h"

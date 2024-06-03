@@ -1,7 +1,7 @@
-#ifndef TAFFO_INFERTAFFORANGENTVINTERFACE_TD
-#define TAFFO_INFERTAFFORANGENTVINTERFACE_TD
+#ifndef TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_TD
+#define TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_TD
 
-include "Taffo/TaffoDialect.td"
+include "Taffo/Dialect/TaffoDialect.td"
 include "mlir/IR/OpBase.td"
 
 def InferTaffoRangeNtvInterface : OpInterface<"InferTaffoRangeNtvInterface"> {
@@ -21,4 +21,4 @@ let methods = [
   >];
 }
 
-#endif // TAFFO_INFERTAFFORANGENTVINTERFACE_TD
+#endif // TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_TD

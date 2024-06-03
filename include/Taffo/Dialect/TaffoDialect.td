@@ -1,5 +1,5 @@
-#ifndef TAFFO_DIALECT
-#define TAFFO_DIALECT
+#ifndef TAFFO_DIALECT_TAFFODIALECT
+#define TAFFO_DIALECT_TAFFODIALECT
 
 include "mlir/IR/OpBase.td"
 
@@ -20,4 +20,4 @@ def TaffoDialect : Dialect {
     }];
 }
 
-#endif // TAFFO_DIALECT
+#endif // TAFFO_DIALECT_TAFFODIALECT

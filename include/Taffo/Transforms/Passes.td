@@ -1,5 +1,5 @@
-#ifndef TAFFO_PASSES_TD
-#define TAFFO_PASSES_TD
+#ifndef TAFFO_TRANSFORMS_PASSES_TD
+#define TAFFO_TRANSFORMS_PASSES_TD
 
 include "mlir/Pass/PassBase.td"
 
@@ -21,4 +21,4 @@ def ValueRangeAnalysisPass
 }
 
 
-#endif TAFFO_PASSES_TD
+#endif // TAFFO_TRANSFORMS_PASSES_TD

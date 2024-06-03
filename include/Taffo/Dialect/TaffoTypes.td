@@ -1,7 +1,7 @@
-#ifndef TAFFOTYPES_TD
-#define TAFFOTYPES_TD
+#ifndef TAFFO_DIALECT_TAFFOTYPES_TD
+#define TAFFO_DIALECT_TAFFOTYPES_TD
 
-include "Taffo/TaffoDialect.td"
+include "Taffo/Dialect/TaffoDialect.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
@@ -32,4 +32,4 @@ def Taffo_Real : Taffo_Type<"Real", "real"> {
 
 }
 
-#endif // TAFFOTYPES_TD
+#endif // TAFFO_DIALECT_TAFFOTYPES_TD

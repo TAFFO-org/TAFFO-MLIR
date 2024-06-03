@@ -1,5 +1,5 @@
-#include "Taffo/Ops.h"
-#include "Taffo/TaffoDialect.h"
+#include "Taffo/Dialect/Ops.h"
+#include "Taffo/Dialect/TaffoDialect.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/FunctionImplementation.h"
 #include "mlir/IR/Builders.h"
@@ -10,15 +10,15 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/ScopeExit.h"
 
-#include "Taffo/InferTaffoRangeNtvInterface.h"
-#include "Taffo/TaffoRangeCommon.h"
+#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+#include "Taffo/Transforms/TaffoRangeCommon.h"
 #include "llvm/ADT/APFloat.h"
 
 using namespace ::mlir;
 using namespace ::mlir::taffo;
 
 #define GET_OP_CLASSES
-#include "Taffo/Taffo.cpp.inc"
+#include "Taffo/Dialect/Taffo.cpp.inc"
 
 namespace mlir::taffo
 {

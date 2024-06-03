@@ -19,7 +19,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
-#include "Taffo/TaffoDialect.h"
+#include "Taffo/Dialect/TaffoDialect.h"
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();

@@ -1,9 +1,9 @@
-#include "Taffo/TaffoDialect.h"
-#include "Taffo/Types.h"
+#include "Taffo/Dialect/TaffoDialect.h"
+#include "Taffo/Dialect/Types.h"
 
 using namespace ::mlir::taffo;
 
-#include "Taffo/TaffoDialect.cpp.inc"
+#include "Taffo/Dialect/TaffoDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // Taffo dialect.
@@ -14,7 +14,7 @@ namespace mlir::taffo {
 
     addOperations<
   #define GET_OP_LIST
-  #include "Taffo/Taffo.cpp.inc"
+  #include "Taffo/Dialect/Taffo.cpp.inc"
         >();
   }
 }

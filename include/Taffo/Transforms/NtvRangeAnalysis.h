@@ -1,9 +1,9 @@
-#ifndef TAFFO_NTVRANGEANALYSIS_H
-#define TAFFO_NTVRANGEANALYSIS_H
+#ifndef TAFFO_TRANSFORMS_NTVRANGEANALYSIS_H
+#define TAFFO_TRANSFORMS_NTVRANGEANALYSIS_H
 
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
-#include "Taffo/InferTaffoRangeNtvInterface.h"
-#include "Taffo/TaffoRangeCommon.h"
+#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+#include "Taffo/Transforms/TaffoRangeCommon.h"
 
 namespace mlir {
 namespace dataflow {
@@ -104,4 +104,4 @@ public:
 } // end namespace dataflow
 } // end namespace mlir
 
-#endif // TAFFO_NTVRANGEANALYSIS_H
+#endif // TAFFO_TRANSFORMS_NTVRANGEANALYSIS_H

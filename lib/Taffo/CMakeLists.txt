@@ -1,19 +1,3 @@
-add_mlir_dialect_library(MLIRTaffo
-        TaffoDialect.cpp
-        Ops.cpp
-        Types.cpp
-        InferTaffoRangeNtvInterface.cpp
-        TaffoRangeCommon.cpp
-        NtvRangeAnalysis.cpp
-        ValueRangeAnalysisPass.cpp
-
-        ADDITIONAL_HEADER_DIRS
-        ${PROJECT_SOURCE_DIR}/include/Taffo
-
-        DEPENDS
-        MLIRTaffoIncGen
-
-        LINK_LIBS PUBLIC
-        MLIRIR
-        MLIRInferTypeOpInterface
-)
+add_subdirectory(Dialect)
+add_subdirectory(Interfaces)
+add_subdirectory(Transforms)

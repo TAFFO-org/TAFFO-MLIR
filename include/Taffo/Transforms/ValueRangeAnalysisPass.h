@@ -1,0 +1,14 @@
+#ifndef TAFFO_TRANSFORMS_VALUERANGEANALYSISPASS_H
+#define TAFFO_TRANSFORMS_VALUERANGEANALYSISPASS_H
+
+#include "mlir/Pass/Pass.h"
+
+namespace mlir::taffo
+{
+#define GEN_PASS_DECL_VALUERANGEANALYSISPASS
+#include "Taffo/Transforms/Passes.h.inc"
+
+}
+
+
+#endif //  TAFFO_TRANSFORMS_VALUERANGEANALYSISPASS_H

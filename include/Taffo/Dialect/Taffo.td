@@ -1,9 +1,9 @@
-#ifndef TAFFO_TAFFO_TD
-#define TAFFO_TAFFO_TD
+#ifndef TAFFO_DIALECT_TAFFO_TD
+#define TAFFO_DIALECT_TAFFO_TD
 
-include "Taffo/TaffoDialect.td"
-include "Taffo/TaffoTypes.td"
-include "Taffo/InferTaffoRangeNtvInterface.td"
+include "Taffo/Dialect/TaffoDialect.td"
+include "Taffo/Dialect/TaffoTypes.td"
+include "Taffo/Interfaces/InferTaffoRangeNtvInterface.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 
 //===---------------------------------------------------------------------===//
@@ -49,4 +49,4 @@ def Taffo_AddOp : Taffo_Op<"Add",
     let results = (outs TaffoReal:$res);
 }
 
-#endif // TAFFO_TAFFO_TD
+#endif // TAFFO_DIALECT_TAFFO_TD
