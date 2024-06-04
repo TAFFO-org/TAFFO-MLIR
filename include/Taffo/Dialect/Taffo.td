@@ -22,7 +22,7 @@ def TaffoReal :
 class Taffo_Op<string mnemonic, list<Trait> traits = []> :
     Op<TaffoDialect, mnemonic, traits>;
 
-def Taffo_AssignOp : Taffo_Op<"Assign",
+def Taffo_AssignOp : Taffo_Op<"assign",
     [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
     let summary = "taffo assignment summary";
     let description = [{
@@ -37,7 +37,7 @@ def Taffo_AssignOp : Taffo_Op<"Assign",
 }
 
 
-def Taffo_AddOp : Taffo_Op<"Add",
+def Taffo_AddOp : Taffo_Op<"add",
     [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
     let summary = "taffo add summary";
     let description = [{

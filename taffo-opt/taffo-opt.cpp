@@ -23,7 +23,8 @@
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
-  // TODO: Register standalone passes here.
+
+  mlir::PassRegistration<mlir::taffo::ValueRangeAnalysisPass>();
 
   mlir::DialectRegistry registry;
   registry.insert<mlir::taffo::TaffoDialect>();
