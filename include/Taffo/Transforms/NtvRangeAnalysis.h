@@ -6,8 +6,7 @@
 #include "Taffo/Transforms/TaffoRangeCommon.h"
 
 namespace mlir {
-//wrong namespace?
-namespace dataflow {
+namespace taffo {
 
 class TaffoValueRange {
 public:
@@ -63,7 +62,7 @@ private:
 
 
 
-class TaffoRangeLattice : public Lattice<TaffoValueRange> {
+class TaffoRangeLattice : public dataflow::Lattice<TaffoValueRange> {
 public:
   using Lattice::Lattice;
 
@@ -74,7 +73,7 @@ public:
 
 
 class TaffoNtvRangeAnalysis
-    : public SparseForwardDataFlowAnalysis<TaffoRangeLattice> {
+    : public dataflow::SparseForwardDataFlowAnalysis<TaffoRangeLattice> {
 public:
   using SparseForwardDataFlowAnalysis::SparseForwardDataFlowAnalysis;
 
@@ -102,7 +101,7 @@ public:
 };
 
 
-} // end namespace dataflow
+} // end namespace taffo
 } // end namespace mlir
 
 #endif // TAFFO_TRANSFORMS_NTVRANGEANALYSIS_H

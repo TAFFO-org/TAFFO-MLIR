@@ -20,20 +20,18 @@
 #include "llvm/Support/ToolOutputFile.h"
 
 #include "Taffo/Dialect/TaffoDialect.h"
+#include "Taffo/Transforms/Passes.h"
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
-
-  mlir::PassRegistration<mlir::taffo::ValueRangeAnalysisPass>();
 
   mlir::DialectRegistry registry;
   registry.insert<mlir::taffo::TaffoDialect>();
   registry.insert<mlir::func::FuncDialect>();
   registry.insert<mlir::arith::ArithDialect>();
-  // Add the following to include *all* MLIR Core dialects, or selectively
-  // include what you need like above. You only need to register dialects that
-  // will be *parsed* by the tool, not the one generated
-  // registerAllDialects(registry);
+
+  //mlir::PassRegistration<mlir::taffo::ValueRangeAnalysisPass>();
+  mlir::taffo::registerTaffoPasses();
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "Taffo optimizer driver\n", registry));

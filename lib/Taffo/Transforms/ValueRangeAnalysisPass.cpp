@@ -31,16 +31,16 @@ namespace {
       // Since what we are doing is very similar, we load it just in case
       // (check if it's necessary in the future)
       solver.load<mlir::dataflow::DeadCodeAnalysis>();
-      solver.load<mlir::dataflow::TaffoNtvRangeAnalysis>();
+      solver.load<TaffoNtvRangeAnalysis>();
       if (mlir::failed(solver.initializeAndRun(module)))
         signalPassFailure();
 
       auto result = module->walk([&](mlir::Operation *op) {
-        if (!llvm::isa<mlir::taffo::AddOp, mlir::taffo::AssignOp>(*op)) {
+        if (!llvm::isa<AddOp, AssignOp>(*op)) {
           return mlir::WalkResult::advance();
         }
-        const mlir::dataflow::TaffoRangeLattice *opRange =
-            solver.lookupState<mlir::dataflow::TaffoRangeLattice>(
+        const TaffoRangeLattice *opRange =
+            solver.lookupState<TaffoRangeLattice>(
                 op->getResult(0));
         if (!opRange || opRange->getValue().isUninitialized()) {
           op->emitOpError()

@@ -1,7 +1,11 @@
-// includes copied from mlir/Analysis/DataFlow/IntegerRangeAnalysis.cpp
+// most includes copied from mlir/Analysis/DataFlow/IntegerRangeAnalysis.cpp
 // might want to clean up later
 
 #include "Taffo/Transforms/NtvRangeAnalysis.h"
+#include "Taffo/Dialect/Ops.h"
+#include "Taffo/Dialect/TaffoDialect.h"
+#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Analysis/DataFlowFramework.h"
@@ -10,7 +14,6 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
-#include "mlir/Interfaces/InferIntRangeInterface.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/STLExtras.h"
