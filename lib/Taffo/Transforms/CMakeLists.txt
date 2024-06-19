@@ -13,5 +13,6 @@ add_mlir_dialect_library(MLIRTaffoTransforms
         Core
 
         LINK_LIBS PUBLIC
+        MLIRTaffoInterfaces
         MLIRIR
 )
