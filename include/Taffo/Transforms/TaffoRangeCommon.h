@@ -11,7 +11,7 @@ using NtvRange = std::pair<::llvm::APFloat, ::llvm::APFloat>;
 
 // using a template to support both affine and interval arithmetic
 template <typename T>
-T inferAssign(llvm::ArrayRef<T> argRanges);
+T inferCast(llvm::ArrayRef<T> argRanges);
 
 template <typename T>
 T inferAdd(llvm::ArrayRef<T> argRanges);

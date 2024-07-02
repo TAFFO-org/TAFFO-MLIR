@@ -18,6 +18,8 @@ def TaffoDialect : Dialect {
     let extraClassDeclaration = [{
         void registerTypes();
     }];
+
+    let useDefaultTypePrinterParser = 1;
 }
 
 #endif // TAFFO_DIALECT_TAFFODIALECT
