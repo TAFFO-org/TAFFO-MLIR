@@ -1,7 +1,7 @@
 #ifndef TAFFO_DIALECT_TAFFOTYPES_TD
 #define TAFFO_DIALECT_TAFFOTYPES_TD
 
-include "Taffo/Dialect/TaffoDialect.td"
+include "Taffo/Dialect/Taffo.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"

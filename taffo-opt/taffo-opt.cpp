@@ -19,7 +19,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
-#include "Taffo/Dialect/TaffoDialect.h"
+#include "Taffo/Dialect/Taffo.h"
 #include "Taffo/Transforms/Passes.h"
 
 int main(int argc, char **argv) {

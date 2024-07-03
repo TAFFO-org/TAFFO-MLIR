@@ -1,5 +1,5 @@
 #include "Taffo/Dialect/Ops.h"
-#include "Taffo/Dialect/TaffoDialect.h"
+#include "Taffo/Dialect/Taffo.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/FunctionImplementation.h"
 #include "mlir/IR/Builders.h"
@@ -18,7 +18,7 @@ using namespace ::mlir;
 using namespace ::mlir::taffo;
 
 #define GET_OP_CLASSES
-#include "Taffo/Dialect/Taffo.cpp.inc"
+#include "Taffo/Dialect/TaffoOps.cpp.inc"
 
 namespace mlir::taffo
 {

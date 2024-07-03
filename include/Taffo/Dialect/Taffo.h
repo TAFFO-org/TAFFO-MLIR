@@ -8,6 +8,6 @@
 #include "mlir/IR/Dialect.h"
 #include "Taffo/Dialect/Types.h"
 #include "Taffo/Dialect/Ops.h"
-#include "Taffo/Dialect/TaffoDialect.h.inc"
+#include "Taffo/Dialect/Taffo.h.inc"
 
 #endif // TAFFO_DIALECT_TAFFODIALECT_H

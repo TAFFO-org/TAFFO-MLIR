@@ -28,9 +28,9 @@
 #include "Taffo/Dialect/Types.h"
 
 #define GET_OP_FWD_DEFINES
-#include "Taffo/Dialect/Taffo.h.inc"
+#include "Taffo/Dialect/TaffoOps.h.inc"
 
 #define GET_OP_CLASSES
-#include "Taffo/Dialect/Taffo.h.inc"
+#include "Taffo/Dialect/TaffoOps.h.inc"
 
 #endif // TAFFO_DIALECT_OPS_H
