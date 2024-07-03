@@ -22,16 +22,17 @@ using namespace ::mlir::taffo;
 
 namespace mlir::taffo
 {
+
+  void CastOp::inferTaffoRanges(
+      llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
+      mlir::taffo::SetTaffoRangeFn setResultRange)
+  {
+    setResultRange(getResult(), inferCast(argRanges));
+  }
+
   void AddOp::inferTaffoRanges(
     llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
     mlir::taffo::SetTaffoRangeFn setResultRange)
-  {
-    setResultRange(getResult(), inferAssign(argRanges));
-  }
-
-  void AssignOp::inferTaffoRanges(
-     llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
-     mlir::taffo::SetTaffoRangeFn setResultRange)
   {
     setResultRange(getResult(), inferAdd(argRanges));
   }

@@ -7,6 +7,8 @@
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
 
+#include "Taffo/Dialect/Ops.h"
+
 namespace mlir::taffo
 {
 #define GEN_PASS_DEF_VALUERANGEANALYSISPASS
@@ -36,7 +38,7 @@ namespace {
         signalPassFailure();
 
       auto result = module->walk([&](mlir::Operation *op) {
-        if (!llvm::isa<AddOp, AssignOp>(*op)) {
+        if (!llvm::isa<AddOp, CastOp>(*op)) {
           return mlir::WalkResult::advance();
         }
         const TaffoRangeLattice *opRange =
