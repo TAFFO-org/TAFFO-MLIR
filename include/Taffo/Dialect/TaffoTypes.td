@@ -31,9 +31,9 @@ def Taffo_Real : Taffo_Type<"Real", "real"> {
     //}];
     ////let assemblyFormat = [{value `p` `:` $precision `range` `:` `[`$min`,` $max`]`}];
 
-    let extraClassDeclaration = [{
-        static }] # name # [{Type get(MLIRContext *context);
-    }];
+    //let extraClassDeclaration = [{
+    //    static }] # name # [{Type get(MLIRContext *context);
+    //}];
 }
 
 #endif // TAFFO_DIALECT_TAFFOTYPES_TD

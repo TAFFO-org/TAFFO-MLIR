@@ -22,18 +22,19 @@ def TaffoReal :
 class Taffo_Op<string mnemonic, list<Trait> traits = []> :
     Op<TaffoDialect, mnemonic, traits>;
 
-def Taffo_AssignOp : Taffo_Op<"assign",
+def Taffo_CastOp : Taffo_Op<"cast",
     [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
     let summary = "taffo assignment summary";
     let description = [{
         taffo assignment description
     }];
 
-    let hasCustomAssemblyFormat = 0;
-    let arguments = (ins TypedAttrInterface:$precision,
-                         TypedAttrInterface:$min,
-                         TypedAttrInterface:$max);
+    let arguments = (ins F64Attr:$precision,
+                         F64Attr:$min,
+                         F64Attr:$max);
     let results = (outs TaffoReal:$res);
+
+    let assemblyFormat = "$precision `,` $min `,` $max attr-dict";
 }
 
 
