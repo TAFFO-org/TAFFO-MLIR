@@ -21,19 +21,6 @@ def Taffo_Real : Taffo_Type<"Real", "real"> {
         real type description.
     }];
 
-    //let parameters = (ins APFloatParameter<"precision">:$precision,
-    //                      APFloatParameter<"min">:$min,
-    //                      APFloatParameter<"max">:$max);
-//
-    ////TODO: fix assembly format
-    //let assemblyFormat = [{
-    //  `<` $precision `,` $min `,` $max `>`
-    //}];
-    ////let assemblyFormat = [{value `p` `:` $precision `range` `:` `[`$min`,` $max`]`}];
-
-    //let extraClassDeclaration = [{
-    //    static }] # name # [{Type get(MLIRContext *context);
-    //}];
 }
 
 #endif // TAFFO_DIALECT_TAFFOTYPES_TD
