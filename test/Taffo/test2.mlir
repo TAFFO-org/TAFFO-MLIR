@@ -10,8 +10,6 @@ module {
         %2 = arith.constant 4.5  : f64
         %3 = arith.constant 10.3 : f64
 
-        //%5 = taffo.cast %b, %1, %2, %3     : !taffo.real
-        //%4 = taffo.cast %a, 0.1, -1.0, 1.0 : f32 -> !taffo.real
         %4 = taffo.cast 0.1, -1.0, 1.0 : !taffo.real
 
         %6 = taffo.add %4, %4 : !taffo.real

@@ -24,6 +24,8 @@
 #include <utility>
 #include <llvm/ADT/APFloat.h>
 
+#define DEBUG_TYPE "value-range-analysis"
+
 using namespace mlir;
 using namespace mlir::dataflow;
 using namespace mlir::taffo;
@@ -77,9 +79,10 @@ void TaffoNtvRangeAnalysis::visitOperation(
   if (!inferrable)
     return setAllToEntryStates(results);
 
-  //LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
   SmallVector<NtvRange> argRanges(
       llvm::map_range(operands, [](const TaffoRangeLattice *val) {
+        LLVM_DEBUG(llvm::dbgs() << "evaluating " << *val << "\n");
         return val->getValue().getValue();
       }));
 
@@ -89,7 +92,9 @@ void TaffoNtvRangeAnalysis::visitOperation(
       return;
     assert(llvm::is_contained(op->getResults(), result));
 
-    //LLVM_DEBUG(llvm::dbgs() << "Inferred range " << attrs << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "Inferred range "
+                            << attrs.first.convertToDouble()
+                            << attrs.second.convertToDouble() << "\n");
     TaffoRangeLattice *lattice = results[result.getResultNumber()];
     TaffoValueRange oldRange = lattice->getValue();
 
@@ -123,7 +128,7 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
     Operation *op, const RegionSuccessor &successor,
     ArrayRef<TaffoRangeLattice *> argLattices, unsigned firstIndex) {
   if (auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op)) {
-    //LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
     // If the lattice on any operand is unitialized, bail out.
     if (llvm::any_of(op->getOperands(), [&](Value value) {
           return getLatticeElementFor(op, value)->getValue().isUninitialized();
@@ -141,7 +146,9 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
       if (!llvm::is_contained(successor.getSuccessor()->getArguments(), arg))
         return;
 
-      //LLVM_DEBUG(llvm::dbgs() << "Inferred range " << attrs << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "Inferred range "
+                              << attrs.first.convertToDouble()
+                              << attrs.second.convertToDouble() << "\n");
       TaffoRangeLattice *lattice = argLattices[arg.getArgNumber()];
       TaffoValueRange oldRange = lattice->getValue();
 
