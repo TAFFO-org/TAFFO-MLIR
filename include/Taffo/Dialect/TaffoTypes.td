@@ -1,7 +1,7 @@
 #ifndef TAFFO_DIALECT_TAFFOTYPES_TD
 #define TAFFO_DIALECT_TAFFOTYPES_TD
 
-include "Taffo/Dialect/TaffoDialect.td"
+include "Taffo/Dialect/Taffo.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
@@ -20,15 +20,6 @@ def Taffo_Real : Taffo_Type<"Real", "real"> {
     let description = [{
         real type description.
     }];
-    let parameters = (ins APFloatParameter<"precision">:$precision,
-                          APFloatParameter<"min">:$min,
-                          APFloatParameter<"max">:$max);
-
-    //TODO: fix assembly format
-    let assemblyFormat = [{
-      $precision $min $max
-    }];
-    //let assemblyFormat = [{value `p` `:` $precision `range` `:` `[`$min`,` $max`]`}];
 
 }
 

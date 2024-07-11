@@ -1,5 +1,5 @@
 add_mlir_dialect_library(MLIRTaffo
-        TaffoDialect.cpp
+        Taffo.cpp
         Ops.cpp
         Types.cpp
 

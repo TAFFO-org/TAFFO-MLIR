@@ -1,5 +1,5 @@
 #include "Taffo/Dialect/Types.h"
-#include "Taffo/Dialect/TaffoDialect.h"
+#include "Taffo/Dialect/Taffo.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/BuiltinDialect.h"

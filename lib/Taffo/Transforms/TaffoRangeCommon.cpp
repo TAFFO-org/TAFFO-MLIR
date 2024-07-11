@@ -6,7 +6,7 @@ namespace mlir::taffo {
 
 
   template<>
-  NtvRange inferAssign(ArrayRef<NtvRange> argRanges) {
+  NtvRange inferCast(ArrayRef<NtvRange> argRanges) {
     assert(argRanges[0].first <= argRanges[0].second);
     return argRanges[0];
   }

@@ -1,7 +1,7 @@
 #ifndef TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_TD
 #define TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_TD
 
-include "Taffo/Dialect/TaffoDialect.td"
+include "Taffo/Dialect/Taffo.td"
 include "mlir/IR/OpBase.td"
 
 def InferTaffoRangeNtvInterface : OpInterface<"InferTaffoRangeNtvInterface"> {

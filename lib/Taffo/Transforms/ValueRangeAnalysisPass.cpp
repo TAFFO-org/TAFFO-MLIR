@@ -1,4 +1,4 @@
-#include "Taffo/Dialect/TaffoDialect.h"
+#include "Taffo/Dialect/Taffo.h"
 #include "Taffo/Transforms/ValueRangeAnalysisPass.h"
 #include "Taffo/Transforms/NtvRangeAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
@@ -6,6 +6,9 @@
 #include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
+
+#include "Taffo/Dialect/Ops.h"
+
 
 namespace mlir::taffo
 {
@@ -36,7 +39,7 @@ namespace {
         signalPassFailure();
 
       auto result = module->walk([&](mlir::Operation *op) {
-        if (!llvm::isa<AddOp, AssignOp>(*op)) {
+        if (!llvm::isa<AddOp, CastOp>(*op)) {
           return mlir::WalkResult::advance();
         }
         const TaffoRangeLattice *opRange =

@@ -1,17 +1,32 @@
 // RUN: taffo-opt %s | taffo-opt | FileCheck %s
-
+// potential example for thesis
 module {
-    func.func @simple_constant()  {
+    func.func @fibonacci(%n: index) -> i32 {
 
-        %1 = arith.constant 4.25 : f16
-        %2 = arith.fptoui %1 : f16 to i16
-        %3 = arith.bitcast %1 : f16 to i16
+        %const = arith.constant dense<[[1, 1], [1, 0]]> : tensor<2x2xi32>
 
-        %4 = arith.constant 15 : i32
-        %5 = arith.constant 14 : i9
-        %6 = arith.extui %5 : i9 to i32
-        %7 = arith.addi %4, %6 : i32
+        %lb = index.constant 0
+        // %ub = index.castu %n : i32 to index
+        %ub = index.constant 5
+        %st = index.constant 1
 
-        return
+        %pow_next = arith.constant dense<0> : tensor<2x2xi32>
+
+        %pow = scf.for %iv = %lb to %ub step %st
+            iter_args(%pow_iter = %const) -> (tensor<2x2xi32>) {
+
+            // %pow_next = linalg.matmul %pow_iter, %const : tensor<2x2xi32>
+
+            %t = linalg.matmul
+                   ins(%pow_iter, %const : tensor<2x2xi32>, tensor<2x2xi32>)
+                   outs(%pow_next : tensor<2x2xi32>) -> tensor<2x2xi32>
+
+            scf.yield %t : tensor<2x2xi32>
+        }
+
+        %zero = index.constant 0
+        %res = tensor.extract %pow[%zero, %zero] : tensor<2x2xi32>
+
+        return %res : i32
     }
 }

@@ -49,11 +49,9 @@ public:
 
   /// Print the value range.
   void print(raw_ostream &os) const {
-    os << "taffo range: [";
-    getValue().first.print(os);
-    os << ", ";
-    getValue().second.print(os);
-    os << "]"; }
+    os << "taffo range: ["
+       << getValue().first.convertToDouble() << ", "
+       << getValue().second.convertToDouble() << "]"; }
 
 private:
   /// The known integer value range.

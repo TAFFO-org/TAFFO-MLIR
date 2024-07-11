@@ -1,5 +1,5 @@
 #include "Taffo/Dialect/Ops.h"
-#include "Taffo/Dialect/TaffoDialect.h"
+#include "Taffo/Dialect/Taffo.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/FunctionImplementation.h"
 #include "mlir/IR/Builders.h"
@@ -18,20 +18,21 @@ using namespace ::mlir;
 using namespace ::mlir::taffo;
 
 #define GET_OP_CLASSES
-#include "Taffo/Dialect/Taffo.cpp.inc"
+#include "Taffo/Dialect/TaffoOps.cpp.inc"
 
 namespace mlir::taffo
 {
-  void AddOp::inferTaffoRanges(
-    llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
-    mlir::taffo::SetTaffoRangeFn setResultRange)
+
+  void CastOp::inferTaffoRanges(
+      llvm::ArrayRef<NtvRange> argRanges,
+      mlir::taffo::SetTaffoRangeFn setResultRange)
   {
-    setResultRange(getResult(), inferAssign(argRanges));
+    setResultRange(getResult(), NtvRange(getMin(), getMax()));
   }
 
-  void AssignOp::inferTaffoRanges(
-     llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
-     mlir::taffo::SetTaffoRangeFn setResultRange)
+  void AddOp::inferTaffoRanges(
+    llvm::ArrayRef<NtvRange> argRanges,
+    mlir::taffo::SetTaffoRangeFn setResultRange)
   {
     setResultRange(getResult(), inferAdd(argRanges));
   }
