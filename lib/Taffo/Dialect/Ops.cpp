@@ -24,14 +24,14 @@ namespace mlir::taffo
 {
 
   void CastOp::inferTaffoRanges(
-      llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
+      llvm::ArrayRef<NtvRange> argRanges,
       mlir::taffo::SetTaffoRangeFn setResultRange)
   {
-    setResultRange(getResult(), inferCast(argRanges));
+    setResultRange(getResult(), NtvRange(getMin(), getMax()));
   }
 
   void AddOp::inferTaffoRanges(
-    llvm::ArrayRef<std::pair<llvm::APFloat, llvm::APFloat>> argRanges,
+    llvm::ArrayRef<NtvRange> argRanges,
     mlir::taffo::SetTaffoRangeFn setResultRange)
   {
     setResultRange(getResult(), inferAdd(argRanges));

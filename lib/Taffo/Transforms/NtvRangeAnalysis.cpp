@@ -82,7 +82,6 @@ void TaffoNtvRangeAnalysis::visitOperation(
   LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
   SmallVector<NtvRange> argRanges(
       llvm::map_range(operands, [](const TaffoRangeLattice *val) {
-        LLVM_DEBUG(llvm::dbgs() << "evaluating " << *val << "\n");
         return val->getValue().getValue();
       }));
 
@@ -92,9 +91,9 @@ void TaffoNtvRangeAnalysis::visitOperation(
       return;
     assert(llvm::is_contained(op->getResults(), result));
 
-    LLVM_DEBUG(llvm::dbgs() << "Inferred range "
-                            << attrs.first.convertToDouble()
-                            << attrs.second.convertToDouble() << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "Inferred range: ["
+                            << attrs.first.convertToDouble() << ", "
+                            << attrs.second.convertToDouble() << "]\n");
     TaffoRangeLattice *lattice = results[result.getResultNumber()];
     TaffoValueRange oldRange = lattice->getValue();
 
@@ -146,9 +145,9 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
       if (!llvm::is_contained(successor.getSuccessor()->getArguments(), arg))
         return;
 
-      LLVM_DEBUG(llvm::dbgs() << "Inferred range "
-                              << attrs.first.convertToDouble()
-                              << attrs.second.convertToDouble() << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "Inferred range: ["
+                              << attrs.first.convertToDouble() << ", "
+                              << attrs.second.convertToDouble() << "]\n");
       TaffoRangeLattice *lattice = argLattices[arg.getArgNumber()];
       TaffoValueRange oldRange = lattice->getValue();
 

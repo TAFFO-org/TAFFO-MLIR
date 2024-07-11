@@ -4,15 +4,10 @@ module {
     func.func @simple_constant()  {
 
         %a = arith.constant 0.5 : f64
-        %b = arith.constant 6.7 : f64
 
-        %1 = arith.constant 0.01 : f64
-        %2 = arith.constant 4.5  : f64
-        %3 = arith.constant 10.3 : f64
-
-        %4 = taffo.cast 0.1, -1.0, 1.0 : !taffo.real
-
-        %6 = taffo.add %4, %4 : !taffo.real
+        %1 = taffo.cast 0.1, -1.0, 1.0 : !taffo.real
+        %2 = taffo.add %1, %1 : !taffo.real
+        %3 = taffo.add %1, %2 : !taffo.real
 
         return
     }
