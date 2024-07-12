@@ -31,17 +31,29 @@ def Taffo_CastOp : Taffo_Op<"cast",
         taffo assignment description
     }];
 
-    let arguments = (ins F64Attr:$precision,
+    let arguments = (ins FloatLike:$from,
+                         F64Attr:$precision,
                          F64Attr:$min,
                          F64Attr:$max);
     let results = (outs TaffoReal:$res);
 
-    let assemblyFormat = "$precision `,` $min `,` $max attr-dict `:` type($res)";
-
-    //let assemblyFormat = "$from `,` $precision `,` $min `,` $max attr-dict `:`"
-    //                           "type($from) `->`  type($res)";
+    let assemblyFormat = "$from `,` $precision `,` $min `,` $max attr-dict `:`"
+                               "type($from) `->`  type($res)";
 }
 
+def Taffo_ConvertOp : Taffo_Op<"convert",
+    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    let summary = "taffo convert summary";
+    let description = [{
+        taffo convert description
+    }];
+
+    let arguments = (ins TaffoReal:$from);
+    let results = (outs FloatLike:$res);
+
+    let assemblyFormat = "$from attr-dict `:`"
+                               "type($from) `->`  type($res)";
+}
 
 def Taffo_AddOp : Taffo_Op<"add",
     [SameOperandsAndResultType,
