@@ -69,4 +69,18 @@ def Taffo_AddOp : Taffo_Op<"add",
     let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($res)";
 }
 
+def Taffo_MultOp : Taffo_Op<"mult",
+    [SameOperandsAndResultType,
+    DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    let summary = "taffo mult summary";
+    let description = [{
+        taffo mult description
+    }];
+
+    let arguments = (ins TaffoReal:$lhs, TaffoReal:$rhs);
+    let results = (outs TaffoReal:$res);
+
+    let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($res)";
+}
+
 #endif // TAFFO_DIALECT_TAFFOOPS_TD

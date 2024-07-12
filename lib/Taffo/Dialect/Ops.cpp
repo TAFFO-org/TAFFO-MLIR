@@ -45,4 +45,11 @@ namespace mlir::taffo
   {
     setResultRange(getResult(), inferAdd(argRanges));
   }
+
+  void MultOp::inferTaffoRanges(
+      llvm::ArrayRef<NtvRange> argRanges,
+      mlir::taffo::SetTaffoRangeFn setResultRange)
+  {
+    setResultRange(getResult(), inferMult(argRanges));
+  }
 }
