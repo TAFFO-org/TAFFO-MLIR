@@ -39,7 +39,7 @@ namespace {
         signalPassFailure();
 
       auto result = module->walk([&](mlir::Operation *op) {
-        if (!llvm::isa<TaffoDialect>(op->getDialect)) {
+        if (!llvm::isa<TaffoDialect>(op->getDialect())) {
           return mlir::WalkResult::advance();
         }
         const TaffoRangeLattice *opRange =

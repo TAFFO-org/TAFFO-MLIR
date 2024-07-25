@@ -20,7 +20,7 @@ class Taffo_Attr<string name,
 }
 
 def Taffo_DatatypeInfoAttr
-    : Taffo_Attr<"DatatypeInfo", [TypedAttrInterface]>
+    : Taffo_Attr<"DatatypeInfo>
 {
     let summary = [{
         Taffo attribute for storing information about
@@ -29,7 +29,8 @@ def Taffo_DatatypeInfoAttr
 
     let description = [{
         Has 3 parameters:
-        - "always positive" bit, for lowering to unsigned intergers
+        - sign bit, for lowering to unsigned integers (set to 0 when the range
+            is positive at both ends)
         - exponent
         - bitwidth
     }];
@@ -37,24 +38,11 @@ def Taffo_DatatypeInfoAttr
     let mnemonic = "dtInfo";
 
     let parameters = (ins
-        AttributeSelfTypeParameter<"">:$type,
-        "bool":$sign,
+        "bool":$signed,
         "int":$exponent,
         "int":$bitwidth);
 
-    let builders = [
-        AttrBuilderWithInferredContext<(ins "Type":$type,
-                                            "bool":$sign,
-                                            "int":$exponent,
-                                            "int":$bitwidth), [{
-            return $_get(type.getContext(), type, sign, exponent, bitwidth);
-        }]>,
-        AttrBuilderWithInferredContext<(ins "MLIRContext*":$context, "bool":$value), [{
-            return $_get(context, BooleanType::get(context), value);
-        }]>
-    ];
-
-    let hasCustomAssemblyFormat = 1;
+    let assemblyFormat = "$signed `,` $exponent `,` $bitwidth"
 }
 
 #endif // MARCO_DIALECT_TAFFO_IR_TAFFOATTRIBUTES_TD
