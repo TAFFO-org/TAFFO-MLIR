@@ -11,7 +11,7 @@ include "mlir/IR/BuiltinTypeInterfaces.td"
 //===----------------------------------------------------------------------===//
 
 class Taffo_Type<string name, string typeMnemonic, list<Trait> traits = []>
-    : TypeDef<TaffoDialect, name, traits> {
+    : TypeDef<Taffo_Dialect, name, traits> {
     let mnemonic = typeMnemonic;
 }
 

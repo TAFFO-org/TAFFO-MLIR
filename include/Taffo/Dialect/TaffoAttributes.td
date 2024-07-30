@@ -1,8 +1,7 @@
-#define MARCO_DIALECT_TAFFO_TAFFOATTRIBUTES_TD
-#ifndef MARCO_DIALECT_TAFFO_TAFFOATTRIBUTES_TD
+#ifndef TAFFO_DIALECT_TAFFOATTRIBUTES_TD
+#define TAFFO_DIALECT_TAFFOATTRIBUTES_TD
 
 include "Taffo/Dialect/Taffo.td"
-//include "Taffo/Dialect/TaffoAttrInterfaces.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
@@ -20,7 +19,7 @@ class Taffo_Attr<string name,
 }
 
 def Taffo_DatatypeInfoAttr
-    : Taffo_Attr<"DatatypeInfo>
+    : Taffo_Attr<"DatatypeInfo">
 {
     let summary = [{
         Taffo attribute for storing information about
@@ -30,7 +29,7 @@ def Taffo_DatatypeInfoAttr
     let description = [{
         Has 3 parameters:
         - sign bit, for lowering to unsigned integers (set to 0 when the range
-            is positive at both ends)
+            is >= 0 at both ends)
         - exponent
         - bitwidth
     }];
@@ -38,11 +37,12 @@ def Taffo_DatatypeInfoAttr
     let mnemonic = "dtInfo";
 
     let parameters = (ins
-        "bool":$signed,
+        "bool":$signd,
         "int":$exponent,
         "int":$bitwidth);
 
-    let assemblyFormat = "$signed `,` $exponent `,` $bitwidth"
+    let assemblyFormat = "`<` struct(params) `>`";
+    //let assemblyFormat = "`<` $signd `,` $exponent `,` $bitwidth `>`";
 }
 
-#endif // MARCO_DIALECT_TAFFO_IR_TAFFOATTRIBUTES_TD
+#endif // TAFFO_DIALECT_TAFFOATTRIBUTES_TD

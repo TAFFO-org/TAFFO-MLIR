@@ -51,6 +51,27 @@ namespace {
                  "been assigned a range?";
           return mlir::WalkResult::interrupt();
         }
+        NtvRange range = opRange->getValue().getValue();
+        bool signd = range.first.isNegative() || range.second.isNegative();
+
+        // Hardcoding for f32, in the future it will need to work off of either
+        // precision, number of significant digits, or a global parameter
+        //const int maxBitwidth = 32;
+        const int maxSignificantDigits = 24;
+
+
+        // we expect the exponent to be small (<2^31), this might
+        // need to be changed for arbitrary precision scientific
+        // computing
+        int lf = range.first.getExactLog2Abs();
+        int ls = range.second.getExactLog2Abs();
+        int max_exp = std::max(lf, ls);
+
+        // temporary hack, is it good enough?
+        int bitwidth = maxSignificantDigits;
+
+        int exponent = max_exp - bitwidth;
+        //op->setAttr("DatatypeInfo", signd, bitwidth, exponent)
 
         return mlir::WalkResult::advance();
       });

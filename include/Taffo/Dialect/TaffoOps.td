@@ -22,7 +22,7 @@ def TaffoReal :
 //===---------------------------------------------------------------------===//
 
 class Taffo_Op<string mnemonic, list<Trait> traits = []> :
-    Op<TaffoDialect, mnemonic, traits>;
+    Op<Taffo_Dialect, mnemonic, traits>;
 
 def Taffo_CastOp : Taffo_Op<"cast",
     [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
