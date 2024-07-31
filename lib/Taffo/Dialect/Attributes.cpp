@@ -11,3 +11,18 @@ using namespace ::mlir::taffo;
 
 #define GET_ATTRDEF_CLASSES
 #include "Taffo/Dialect/TaffoAttributes.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// Taffo dialect.
+//===----------------------------------------------------------------------===//
+
+namespace mlir::taffo
+{
+  void TaffoDialect::registerAttributes()
+  {
+    addAttributes<
+#define GET_ATTRDEF_LIST
+#include "Taffo/Dialect/TaffoAttributes.cpp.inc"
+        >();
+  }
+}
