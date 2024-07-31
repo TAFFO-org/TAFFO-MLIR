@@ -1,6 +1,7 @@
 #include "Taffo/Dialect/Attributes.h"
 #include "Taffo/Dialect/Taffo.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "mlir/IR/DialectImplementation.h"
 
 using namespace ::mlir::taffo;
 

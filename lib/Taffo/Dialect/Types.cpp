@@ -9,21 +9,6 @@
 using namespace ::mlir::taffo;
 using namespace ::mlir::taffo::detail;
 
-template <typename APFloat>
-//NOTE: tablegen doesn't generate RealType parameters as optionals, so
-//we go against other FieldParsers instantiation and don't return an optional
-struct mlir::FieldParser<APFloat> {
-  static FailureOr<APFloat> parse(AsmParser &parser) {
-    //mimics FieldParser<IntT>
-    //NOTE: AP is a lie
-    double value;
-    if (parser.parseFloat(value)) {
-      //why...?
-      return failure();
-    }
-    return APFloat(value);
-  }
-};
 
 //===---------------------------------------------------------------------===//
 // Tablegen type definitions

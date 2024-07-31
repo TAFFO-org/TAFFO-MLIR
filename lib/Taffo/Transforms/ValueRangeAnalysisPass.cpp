@@ -1,6 +1,7 @@
 #include "Taffo/Dialect/Taffo.h"
 #include "Taffo/Transforms/ValueRangeAnalysisPass.h"
 #include "Taffo/Transforms/NtvRangeAnalysis.h"
+#include "Taffo/Dialect/Attributes.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Analysis/DataFlowFramework.h"
@@ -9,6 +10,7 @@
 
 #include "Taffo/Dialect/Ops.h"
 
+#include "iostream"
 
 namespace mlir::taffo
 {
@@ -71,7 +73,12 @@ namespace {
         int bitwidth = maxSignificantDigits;
 
         int exponent = max_exp - bitwidth;
-        //op->setAttr("DatatypeInfo", signd, bitwidth, exponent)
+        op->setAttr("DatatypeInfo",
+            DatatypeInfoAttr::get(op->getContext(), signd, bitwidth, exponent));
+
+        mlir::Attribute a = op->getAttr("DatatypeInfo");
+        DatatypeInfoAttr& attr = static_cast<DatatypeInfoAttr&>(a);
+        std::cout << attr.getSignd() << attr.getExponent() << attr.getBitwidth();
 
         return mlir::WalkResult::advance();
       });
