@@ -10,8 +10,6 @@
 
 #include "Taffo/Dialect/Ops.h"
 
-#include "iostream"
-
 namespace mlir::taffo
 {
 #define GEN_PASS_DEF_VALUERANGEANALYSISPASS
@@ -74,11 +72,7 @@ namespace {
 
         int exponent = max_exp - bitwidth;
         op->setAttr("DatatypeInfo",
-            DatatypeInfoAttr::get(op->getContext(), signd, bitwidth, exponent));
-
-        mlir::Attribute a = op->getAttr("DatatypeInfo");
-        DatatypeInfoAttr& attr = static_cast<DatatypeInfoAttr&>(a);
-        std::cout << attr.getSignd() << attr.getExponent() << attr.getBitwidth();
+            DatatypeInfoAttr::get(op->getContext(), signd, exponent, bitwidth));
 
         return mlir::WalkResult::advance();
       });
