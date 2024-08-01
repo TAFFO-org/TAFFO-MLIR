@@ -3,7 +3,6 @@
 #include "Taffo/Transforms/NtvRangeAnalysis.h"
 #include "Taffo/Dialect/Attributes.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
-#include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
