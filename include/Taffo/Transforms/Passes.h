@@ -2,6 +2,7 @@
 #define TAFFO_TRANSFORMS_PASSES_H
 
 #include "Taffo/Transforms/ValueRangeAnalysisPass.h"
+#include "Taffo/Transforms/LowerToArithPass.h"
 
 namespace mlir::taffo
 {

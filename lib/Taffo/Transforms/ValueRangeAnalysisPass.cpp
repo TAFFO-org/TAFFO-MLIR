@@ -25,7 +25,7 @@ namespace {
     using ValueRangeAnalysisPassBase::ValueRangeAnalysisPassBase;
 
     void runOnOperation() override {
-      mlir::Operation *module = getOperation();
+      mlir::Operation *op = getOperation();
 
       mlir::DataFlowSolver solver;
 
@@ -34,50 +34,46 @@ namespace {
       // (check if it's necessary in the future)
       solver.load<mlir::dataflow::DeadCodeAnalysis>();
       solver.load<TaffoNtvRangeAnalysis>();
-      if (mlir::failed(solver.initializeAndRun(module)))
+      if (mlir::failed(solver.initializeAndRun(op)))
         signalPassFailure();
 
-      auto result = module->walk([&](mlir::Operation *op) {
-        if (!llvm::isa<TaffoDialect>(op->getDialect())) {
-          return mlir::WalkResult::advance();
-        }
-        const TaffoRangeLattice *opRange =
-            solver.lookupState<TaffoRangeLattice>(
-                op->getResult(0));
-        if (!opRange || opRange->getValue().isUninitialized()) {
-          op->emitOpError()
-              << "Found op without a set range; have all variables"
-                 "been assigned a range?";
-          return mlir::WalkResult::interrupt();
-        }
-        NtvRange range = opRange->getValue().getValue();
-        bool signd = range.first.isNegative() || range.second.isNegative();
+      // only check Taffo Ops
+      if (!llvm::isa<TaffoDialect>(op->getDialect())) {
+        return;
+      }
 
-        // Hardcoding for f32, in the future it will need to work off of either
-        // precision, number of significant digits, or a global parameter
-        //const int maxBitwidth = 32;
-        const int maxSignificantDigits = 24;
-
-
-        // we expect the exponent to be small (<2^31), this might
-        // need to be changed for arbitrary precision scientific
-        // computing
-        int lf = range.first.getExactLog2Abs();
-        int ls = range.second.getExactLog2Abs();
-        int max_exp = std::max(lf, ls);
-
-        // temporary hack, is it good enough?
-        int bitwidth = maxSignificantDigits;
-
-        int exponent = max_exp - bitwidth;
-        op->setAttr("DatatypeInfo",
-            DatatypeInfoAttr::get(op->getContext(), signd, exponent, bitwidth));
-
-        return mlir::WalkResult::advance();
-      });
-
-      if (result.wasInterrupted())
+      const TaffoRangeLattice *opRange =
+          solver.lookupState<TaffoRangeLattice>(
+              op->getResult(0));
+      if (!opRange || opRange->getValue().isUninitialized()) {
+        op->emitOpError()
+            << "Found op without a set range; have all variables"
+               "been assigned a range?";
         signalPassFailure();
+      }
+      NtvRange range = opRange->getValue().getValue();
+      bool signd = range.first.isNegative() || range.second.isNegative();
+
+      // Hardcoding for f32, in the future it will need to work off of either
+      // precision, number of significant digits, or a global parameter
+      //const int maxBitwidth = 32;
+      const int maxSignificantDigits = 24;
+
+      // we expect the exponent to be small (<2^31), this might
+      // need to be changed for arbitrary precision scientific
+      // computing
+      int lf = range.first.getExactLog2Abs();
+      int ls = range.second.getExactLog2Abs();
+      int max_exp = std::max(lf, ls);
+
+      // temporary hack, is it good enough?
+      int bitwidth = maxSignificantDigits;
+
+      int exponent = max_exp - bitwidth;
+      op->setAttr("DatatypeInfo",
+          DatatypeInfoAttr::get(op->getContext(), signd, exponent, bitwidth));
+
+      return;
     }
   };
 }

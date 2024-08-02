@@ -6,6 +6,7 @@
 #define TAFFO_DIALECT_TAFFODIALECT_H
 
 #include "mlir/IR/Dialect.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "Taffo/Dialect/Types.h"
 #include "Taffo/Dialect/Ops.h"
 #include "Taffo/Dialect/Taffo.h.inc"
