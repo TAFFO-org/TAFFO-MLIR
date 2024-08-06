@@ -44,35 +44,35 @@ public:
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      std::optional<int> getExp = [](Value v) {
-        DatatypeInfoAttr attr = v.getDefiningOp()
-                                    ->getAttr("DatatypeInfo")
-                                    .dyn_cast_or_null<DatatypeInfoAttr>();
-        return (attr != NULL) ? std::optional<int>(attr.getExponent())
-                              : std::nullopt;
+      // We use auto because language design is hard
+      auto getExp = [](Value v) {
+        Attribute attr = v.getDefiningOp()->getAttr("DatatypeInfo");
+        DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
+        return (dt != NULL) ? std::optional<int>{dt.getExponent()}
+                            : std::nullopt;
       };
 
       std::optional<int> rhsExp = getExp(adaptor.getRhs());
-      if (!rhsExp.has_value) {
+      if (!rhsExp.has_value()) {
         op->emitOpError() << "DatatypeInfo has not been set for rhs";
-        return failure()
+        return failure();
       }
       std::optional<int> lhsExp = getExp(adaptor.getLhs());
-      if (!lhsExp.has_value) {
+      if (!lhsExp.has_value()) {
         op->emitOpError() << "DatatypeInfo has not been set for lhs";
-        return failure()
+        return failure();
       }
 
-      int expDiff = std::abs(rhsExp.value - lhsExp.value);
+      int expDiff = std::abs(rhsExp.value() - lhsExp.value());
       if (expDiff > 32) {
         // TODO if difference between exps is greater than bitwidth, delete
         //  op with warning
       }
       if (expDiff != 0) {
         Value to_shift =
-            rhsExp.value < lhsExp.value ? adaptor.getRhs() : adaptor.getLhs();
+            rhsExp.value() < lhsExp.value() ? adaptor.getRhs() : adaptor.getLhs();
         Value no_shift =
-            !rhsExp.value < lhsExp.value ? adaptor.getRhs() : adaptor.getLhs();
+            rhsExp.value() > lhsExp.value() ? adaptor.getRhs() : adaptor.getLhs();
 
         arith::ConstantOp shift_amount =
             b.create<arith::ConstantOp>(b.getI32IntegerAttr(expDiff));
