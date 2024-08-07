@@ -8,7 +8,6 @@
 #include "mlir/Pass/Pass.h"
 
 #include "Taffo/Dialect/Ops.h"
-#include <iostream>
 
 namespace mlir::taffo {
 #define GEN_PASS_DEF_VALUERANGEANALYSISPASS

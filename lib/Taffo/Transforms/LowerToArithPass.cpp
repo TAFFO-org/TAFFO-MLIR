@@ -5,8 +5,11 @@
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/IR/BuiltinDialect.h"
 
 #include "Taffo/Dialect/Ops.h"
+
+// #include <iostream>
 
 namespace mlir::taffo {
 #define GEN_PASS_DEF_LOWERTOARITHPASS
@@ -29,6 +32,36 @@ public:
         return IntegerType::get(ctx, bitwidth,
                                 IntegerType::SignednessSemantics::Signless);
       });
+
+      addTargetMaterialization(
+          [&](mlir::OpBuilder& builder,
+              mlir::Type resultType,
+              mlir::ValueRange inputs,
+              mlir::Location loc) -> std::optional<mlir::Value> {
+            if (inputs.size() != 1) {
+              return std::nullopt;
+            }
+
+            auto castOp = builder.create<mlir::UnrealizedConversionCastOp>(
+                loc, resultType, inputs);
+
+            return castOp.getResult(0);
+          });
+
+      addSourceMaterialization(
+          [&](mlir::OpBuilder& builder,
+              mlir::Type resultType,
+              mlir::ValueRange inputs,
+              mlir::Location loc) -> std::optional<mlir::Value> {
+            if (inputs.size() != 1) {
+              return std::nullopt;
+            }
+
+            auto castOp = builder.create<mlir::UnrealizedConversionCastOp>(
+                loc, resultType, inputs);
+
+            return castOp.getResult(0);
+          });
     }
   };
 
@@ -44,21 +77,25 @@ public:
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      // We use auto because language design is hard
-      auto getExp = [](Value v) {
-        Attribute attr = v.getDefiningOp()->getAttr("DatatypeInfo");
+
+      // TODO handle function arguments
+      auto getExp = [](Value v) -> std::optional<int> {
+        mlir::Operation* op = v.getDefiningOp();
+        if (op == nullptr)
+          return std::nullopt;
+        Attribute attr = op->getAttr("DatatypeInfo");
         DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
-        return (dt != NULL) ? std::optional<int>{dt.getExponent()}
-                            : std::nullopt;
+        return dt ? std::optional<int>{dt.getExponent()}
+                               : std::nullopt;
       };
 
-      std::optional<int> rhsExp = getExp(adaptor.getRhs());
-      if (!rhsExp.has_value()) {
+      std::optional<int> rhsExp = getExp(op.getRhs());
+      if (!rhsExp) {
         op->emitOpError() << "DatatypeInfo has not been set for rhs";
         return failure();
       }
-      std::optional<int> lhsExp = getExp(adaptor.getLhs());
-      if (!lhsExp.has_value()) {
+      std::optional<int> lhsExp = getExp(op.getLhs());
+      if (!lhsExp) {
         op->emitOpError() << "DatatypeInfo has not been set for lhs";
         return failure();
       }
@@ -69,10 +106,10 @@ public:
         //  op with warning
       }
       if (expDiff != 0) {
-        Value to_shift =
-            rhsExp.value() < lhsExp.value() ? adaptor.getRhs() : adaptor.getLhs();
-        Value no_shift =
-            rhsExp.value() > lhsExp.value() ? adaptor.getRhs() : adaptor.getLhs();
+        Value to_shift = rhsExp.value() < lhsExp.value() ? adaptor.getRhs()
+                                                         : adaptor.getLhs();
+        Value no_shift = rhsExp.value() > lhsExp.value() ? adaptor.getRhs()
+                                                         : adaptor.getLhs();
 
         arith::ConstantOp shift_amount =
             b.create<arith::ConstantOp>(b.getI32IntegerAttr(expDiff));
@@ -80,13 +117,13 @@ public:
             b.create<arith::ShRSIOp>(to_shift, shift_amount.getResult());
         arith::AddIOp addOp =
             b.create<arith::AddIOp>(no_shift, ShOp.getResult());
-        rewriter.replaceOp(op.getOperation(), addOp);
+        rewriter.replaceOp(op, addOp);
         return success();
       }
 
       arith::AddIOp addOp =
           b.create<arith::AddIOp>(adaptor.getLhs(), adaptor.getRhs());
-      rewriter.replaceOp(op.getOperation(), addOp);
+      rewriter.replaceOp(op, addOp);
       return success();
     }
   };
@@ -96,7 +133,8 @@ public:
     mlir::Operation *module = getOperation();
 
     ConversionTarget target(*context);
-    target.addLegalDialect<arith::ArithDialect>();
+    target.markUnknownOpDynamicallyLegal([](Operation* op){return true;});
+    target.addIllegalOp<AddOp>();
     // target.addIllegalDialect<TaffoDialect>();
 
     RewritePatternSet patterns(context);
