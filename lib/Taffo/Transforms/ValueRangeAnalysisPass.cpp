@@ -55,15 +55,15 @@ public:
       // const int maxBitwidth = 32;
       const int maxSignificantDigits = 24;
 
-      auto getLog2 = [](::llvm::APFloat f) {
-        return static_cast<int>(std::ceil(std::log2(f.convertToDouble())));
+      auto getLog2 = [](::llvm::APFloat f) -> int {
+        return static_cast<int>(
+            std::floor(std::log2(std::abs(f.convertToDouble()))));
       };
 
       // we expect the exponent to be small (<2^31), this might
       // need to be changed for arbitrary precision scientific
-      // computing
-      // int lf = range.first.getExactLog2Abs();
-      // int ls = range.second.getExactLog2Abs();
+      // computing (that being said, quad precision exponent is
+      // 15 bits wide......)
       int lf = getLog2(range.first);
       int ls = getLog2(range.second);
 
@@ -72,7 +72,10 @@ public:
       // temporary hack, is it good enough?
       int bitwidth = maxSignificantDigits;
 
-      int exponent = max_exp - bitwidth;
+      // the left-most bit of an  integer has 2^(bitwidth-1) weight,
+      // we want the leftmost bit of the fixed-point integer to have
+      // weight 2^max_exp, hence the "-1"
+      int exponent = max_exp - (bitwidth - 1);
       op->setAttr("DatatypeInfo", DatatypeInfoAttr::get(op->getContext(), signd,
                                                         exponent, bitwidth));
 

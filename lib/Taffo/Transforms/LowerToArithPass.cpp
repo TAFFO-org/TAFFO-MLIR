@@ -1,15 +1,13 @@
 #include "Taffo/Transforms/LowerToArithPass.h"
 #include "Taffo/Dialect/Attributes.h"
 #include "Taffo/Dialect/Taffo.h"
+#include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/IR/BuiltinDialect.h"
 
 #include "Taffo/Dialect/Ops.h"
-
-// #include <iostream>
 
 namespace mlir::taffo {
 #define GEN_PASS_DEF_LOWERTOARITHPASS
@@ -34,8 +32,7 @@ public:
       });
 
       addTargetMaterialization(
-          [&](mlir::OpBuilder& builder,
-              mlir::Type resultType,
+          [&](mlir::OpBuilder &builder, mlir::Type resultType,
               mlir::ValueRange inputs,
               mlir::Location loc) -> std::optional<mlir::Value> {
             if (inputs.size() != 1) {
@@ -49,8 +46,7 @@ public:
           });
 
       addSourceMaterialization(
-          [&](mlir::OpBuilder& builder,
-              mlir::Type resultType,
+          [&](mlir::OpBuilder &builder, mlir::Type resultType,
               mlir::ValueRange inputs,
               mlir::Location loc) -> std::optional<mlir::Value> {
             if (inputs.size() != 1) {
@@ -71,22 +67,21 @@ public:
 
     using OpConversionPattern::OpConversionPattern;
 
+    // TODO overflow check (maybe in an intermediate pass on dtInfo?)
     LogicalResult
     matchAndRewrite(AddOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-
       // TODO handle function arguments
       auto getExp = [](Value v) -> std::optional<int> {
-        mlir::Operation* op = v.getDefiningOp();
+        mlir::Operation *op = v.getDefiningOp();
         if (op == nullptr)
           return std::nullopt;
         Attribute attr = op->getAttr("DatatypeInfo");
         DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
-        return dt ? std::optional<int>{dt.getExponent()}
-                               : std::nullopt;
+        return dt ? std::optional<int>{dt.getExponent()} : std::nullopt;
       };
 
       std::optional<int> rhsExp = getExp(op.getRhs());
@@ -127,13 +122,52 @@ public:
       return success();
     }
   };
+  struct ConvertCast : public OpConversionPattern<CastOp> {
+    ConvertCast(mlir::MLIRContext *context)
+        : OpConversionPattern<CastOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(CastOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+      FloatType fType = ::llvm::dyn_cast<FloatType>(op.getFrom().getType());
+      unsigned ogWidth = fType.getWidth();
+
+      if (ogWidth > 64) {
+        op->emitOpError()
+            << "Conversion from floats bigger than f64 is not yet supported";
+        return failure();
+      }
+
+      DatatypeInfoAttr dtInfo =
+          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+
+
+      // sign mask
+      IntegerAttr mask = b.getIntegerAttr(b.getIntegerType(ogWidth),
+                                          (uint64_t)1 << (ogWidth - 1));
+      arith::ConstantOp constOp = b.create<arith::ConstantOp>(mask);
+
+      arith::BitcastOp bitcast =
+          b.create<arith::BitcastOp>(b.getIntegerType(ogWidth), op.getFrom());
+
+      // check sign
+      arith::AndIOp andOp = b.create<arith::AndIOp>(constOp, bitcast);
+      arith::CmpIOp cmpOp =
+          b.create<arith::CmpIOp>(arith::CmpIPredicate::eq, andOp, constOp);
+    }
+  };
 
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     mlir::Operation *module = getOperation();
 
     ConversionTarget target(*context);
-    target.markUnknownOpDynamicallyLegal([](Operation* op){return true;});
+    target.markUnknownOpDynamicallyLegal([](Operation *op) { return true; });
     target.addIllegalOp<AddOp>();
     // target.addIllegalDialect<TaffoDialect>();
 
