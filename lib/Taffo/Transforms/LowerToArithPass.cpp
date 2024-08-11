@@ -146,8 +146,7 @@ public:
       DatatypeInfoAttr dtInfo =
           op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
 
-
-      // sign mask
+      // sign mask (0b1000...0)
       IntegerAttr mask = b.getIntegerAttr(b.getIntegerType(ogWidth),
                                           (uint64_t)1 << (ogWidth - 1));
       arith::ConstantOp constOp = b.create<arith::ConstantOp>(mask);
@@ -157,8 +156,29 @@ public:
 
       // check sign
       arith::AndIOp andOp = b.create<arith::AndIOp>(constOp, bitcast);
-      arith::CmpIOp cmpOp =
+      arith::CmpIOp isNegativeOp =
           b.create<arith::CmpIOp>(arith::CmpIPredicate::eq, andOp, constOp);
+
+      // inverse of sign mask (0b01111...1)
+      IntegerAttr mask2 = b.getIntegerAttr(b.getIntegerType(ogWidth),
+                                           ((uint64_t)1 << (ogWidth - 1)) - 1);
+      arith::ConstantOp constOp2 = b.create<arith::ConstantOp>(mask2);
+      // zero out sign bit
+      arith::AndIOp signless = b.create<arith::AndIOp>(constOp2, bitcast);
+
+      // shift mantissa out
+      arith::ShRUIOp expBits = b.create<arith::ShRUIOp>(
+          signless, ogWidth - (fType.getFPMantissaWidth() + 1));
+
+      // exponent bias (for f32, this is 2^(8 - 1) - 1 = 127)
+      IntegerAttr mask3 = b.getIntegerAttr(
+          b.getIntegerType(ogWidth),
+          ((uint64_t)1 << (fType.getFPMantissaWidth() - 1)) - 1));
+      arith::ConstantOp constOp3 = b.create<arith::ConstantOp>(mask3);
+      // debias exponent
+      arith::SubIOp debiasedExp = b.create<arith::SubIOp>(expBits, constOp3);
+
+
     }
   };
 
