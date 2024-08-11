@@ -143,21 +143,18 @@ public:
         return failure();
       }
 
-      DatatypeInfoAttr dtInfo =
-          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
-
       // sign mask (0b1000...0)
-      IntegerAttr mask = b.getIntegerAttr(b.getIntegerType(ogWidth),
-                                          (uint64_t)1 << (ogWidth - 1));
-      arith::ConstantOp constOp = b.create<arith::ConstantOp>(mask);
+      IntegerAttr sign_mask = b.getIntegerAttr(b.getIntegerType(ogWidth),
+                                               (uint64_t)1 << (ogWidth - 1));
+      arith::ConstantOp sign_constOp = b.create<arith::ConstantOp>(sign_mask);
 
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(ogWidth), op.getFrom());
 
       // check sign
-      arith::AndIOp andOp = b.create<arith::AndIOp>(constOp, bitcast);
-      arith::CmpIOp isNegativeOp =
-          b.create<arith::CmpIOp>(arith::CmpIPredicate::eq, andOp, constOp);
+      arith::AndIOp andOp = b.create<arith::AndIOp>(sign_constOp, bitcast);
+      arith::CmpIOp isNegativeOp = b.create<arith::CmpIOp>(
+          arith::CmpIPredicate::eq, andOp, sign_constOp);
 
       // inverse of sign mask (0b01111...1)
       IntegerAttr mask2 = b.getIntegerAttr(b.getIntegerType(ogWidth),
@@ -167,18 +164,47 @@ public:
       arith::AndIOp signless = b.create<arith::AndIOp>(constOp2, bitcast);
 
       // shift mantissa out
-      arith::ShRUIOp expBits = b.create<arith::ShRUIOp>(
-          signless, ogWidth - (fType.getFPMantissaWidth() + 1));
+      IntegerAttr shift_amount =
+          b.getIntegerAttr(b.getIntegerType(ogWidth),
+                           ogWidth - (fType.getFPMantissaWidth() + 1));
+      arith::ConstantOp constOp3 = b.create<arith::ConstantOp>(shift_amount);
+      arith::ShRUIOp expBits = b.create<arith::ShRUIOp>(signless, constOp3);
 
       // exponent bias (for f32, this is 2^(8 - 1) - 1 = 127)
-      IntegerAttr mask3 = b.getIntegerAttr(
+      IntegerAttr mask4 = b.getIntegerAttr(
           b.getIntegerType(ogWidth),
           ((uint64_t)1 << (fType.getFPMantissaWidth() - 1)) - 1));
-      arith::ConstantOp constOp3 = b.create<arith::ConstantOp>(mask3);
+      arith::ConstantOp constOp4 = b.create<arith::ConstantOp>(mask4);
       // debias exponent
-      arith::SubIOp debiasedExp = b.create<arith::SubIOp>(expBits, constOp3);
+      arith::SubIOp debiasedExp = b.create<arith::SubIOp>(expBits, constOp4);
 
+      // shift exponent out
+      // we leave one bit to add in the implicit 1 to the significand
+      IntegerAttr shift_amount2 = b.getIntegerAttr(b.getIntegerType(ogWidth),
+                                                   fType.getFPMantissaWidth());
+      arith::ConstantOp constOp5 = b.create<arith::ConstantOp>(shift_amount2);
+      arith::ShLIOp mantissa = b.create<arith::ShLIOp>(signless, constOp5);
 
+      // add implicit one
+      arith::OrIOp decoded_mantissa =
+          b.create<arith::OrIOp>(mantissa, sign_constOp);
+
+      // compute shift amount to convert to fixed point
+      DatatypeInfoAttr dtInfo =
+          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+
+      IntegerAttr fixP_exp =
+          b.getIntegerAttr(b.getIntegerType(ogWidth), dtInfo.getExp());
+      arith::ConstantOp constOp6 = b.create<arith::ConstantOp>(fixP_exp);
+      arith::SubIOp shift_amount3 =
+          b.create<arith::SubIOp>(constOp6, debiasedExp);
+
+      // final shift
+      arith::ShRUIOp fixP =
+          b.create<arith::ShRUIOp>(decoded_mantissa, shift_amount3);
+
+      //NOTE: If shift_amount3 == 0 and isNegativeOp == 1 the number is
+      // already converted, otherwise we need to do 2's complement
     }
   };
 
