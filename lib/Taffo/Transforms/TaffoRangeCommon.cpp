@@ -9,7 +9,7 @@ template <>
 NtvRange inferCast(ArrayRef<NtvRange> argRanges) {
   assert(argRanges[0].first <= argRanges[0].second &&
          "Upperbound and lowerbound of this range are inverted");
-  
+
   return argRanges[0];
 }
 

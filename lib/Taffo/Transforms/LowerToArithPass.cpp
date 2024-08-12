@@ -173,7 +173,7 @@ public:
       // exponent bias (for f32, this is 2^(8 - 1) - 1 = 127)
       IntegerAttr mask4 = b.getIntegerAttr(
           b.getIntegerType(ogWidth),
-          ((uint64_t)1 << (fType.getFPMantissaWidth() - 1)) - 1));
+          ((uint64_t)1 << (fType.getFPMantissaWidth() - 1)) - 1);
       arith::ConstantOp constOp4 = b.create<arith::ConstantOp>(mask4);
       // debias exponent
       arith::SubIOp debiasedExp = b.create<arith::SubIOp>(expBits, constOp4);
@@ -194,7 +194,7 @@ public:
           op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
 
       IntegerAttr fixP_exp =
-          b.getIntegerAttr(b.getIntegerType(ogWidth), dtInfo.getExp());
+          b.getIntegerAttr(b.getIntegerType(ogWidth), dtInfo.getExponent());
       arith::ConstantOp constOp6 = b.create<arith::ConstantOp>(fixP_exp);
       arith::SubIOp shift_amount3 =
           b.create<arith::SubIOp>(constOp6, debiasedExp);
