@@ -29,6 +29,7 @@ int main(int argc, char **argv) {
   registry.insert<mlir::taffo::TaffoDialect>();
   registry.insert<mlir::func::FuncDialect>();
   registry.insert<mlir::arith::ArithDialect>();
+  registry.insert<mlir::scf::SCFDialect>();
 
   //mlir::PassRegistration<mlir::taffo::ValueRangeAnalysisPass>();
   mlir::taffo::registerTaffoPasses();

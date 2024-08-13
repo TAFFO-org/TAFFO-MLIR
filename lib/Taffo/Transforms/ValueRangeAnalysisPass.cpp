@@ -72,7 +72,7 @@ public:
       // since we use 2's complement for fixed point numbers, we
       // need to account for the fact that the MSB will have negative
       // weight
-      max_exp = max_exp == ls ? max_exp + 1 : max_exp;
+      max_exp = signd ? max_exp + 1 : max_exp;
 
       // temporary hack, is it good enough?
       int bitwidth = maxSignificantDigits;

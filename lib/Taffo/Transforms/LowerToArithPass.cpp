@@ -1,6 +1,7 @@
 #include "Taffo/Transforms/LowerToArithPass.h"
 #include "Taffo/Dialect/Attributes.h"
 #include "Taffo/Dialect/Taffo.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Visitors.h"
@@ -143,68 +144,110 @@ public:
         return failure();
       }
 
-      // sign mask (0b1000...0)
-      IntegerAttr sign_mask = b.getIntegerAttr(b.getIntegerType(ogWidth),
-                                               (uint64_t)1 << (ogWidth - 1));
-      arith::ConstantOp sign_constOp = b.create<arith::ConstantOp>(sign_mask);
+      auto buildIntAttr = [ogWidth](Builder b, int64_t value) -> IntegerAttr {
+        return b.getIntegerAttr(b.getIntegerType(ogWidth), value);
+      };
+
+      DatatypeInfoAttr dtInfo =
+          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
 
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(ogWidth), op.getFrom());
 
-      // check sign
-      arith::AndIOp andOp = b.create<arith::AndIOp>(sign_constOp, bitcast);
-      arith::CmpIOp isNegativeOp = b.create<arith::CmpIOp>(
-          arith::CmpIPredicate::eq, andOp, sign_constOp);
+      // declared outside for scoping reasons
+      arith::CmpIOp isNegative;
+      Value intermediate = bitcast.getResult();
 
-      // inverse of sign mask (0b01111...1)
-      IntegerAttr mask2 = b.getIntegerAttr(b.getIntegerType(ogWidth),
-                                           ((uint64_t)1 << (ogWidth - 1)) - 1);
-      arith::ConstantOp constOp2 = b.create<arith::ConstantOp>(mask2);
-      // zero out sign bit
-      arith::AndIOp signless = b.create<arith::AndIOp>(constOp2, bitcast);
+      if (dtInfo.getSignd()) {
+        // sign mask (0b1000...0)
+        IntegerAttr sign_mask = buildIntAttr(b, (uint64_t)1 << (ogWidth - 1));
+        arith::ConstantOp sign_constOp = b.create<arith::ConstantOp>(sign_mask);
+
+        // check sign
+        arith::AndIOp andOp = b.create<arith::AndIOp>(sign_constOp, bitcast);
+        isNegative = b.create<arith::CmpIOp>(arith::CmpIPredicate::eq, andOp,
+                                             sign_constOp);
+
+        // inverse of sign mask (0b01111...1)
+        IntegerAttr mask2 = buildIntAttr(b, ((uint64_t)1 << (ogWidth - 1)) - 1);
+        arith::ConstantOp constOp2 = b.create<arith::ConstantOp>(mask2);
+        // zero out sign bit
+        arith::AndIOp signless = b.create<arith::AndIOp>(constOp2, bitcast);
+
+        intermediate = signless.getResult();
+      }
 
       // shift mantissa out
       IntegerAttr shift_amount =
-          b.getIntegerAttr(b.getIntegerType(ogWidth),
-                           ogWidth - (fType.getFPMantissaWidth() + 1));
+          buildIntAttr(b, ogWidth - (fType.getFPMantissaWidth() + 1));
       arith::ConstantOp constOp3 = b.create<arith::ConstantOp>(shift_amount);
-      arith::ShRUIOp expBits = b.create<arith::ShRUIOp>(signless, constOp3);
+      arith::ShRUIOp expBits = b.create<arith::ShRUIOp>(intermediate, constOp3);
 
       // exponent bias (for f32, this is 2^(8 - 1) - 1 = 127)
-      IntegerAttr mask4 = b.getIntegerAttr(
-          b.getIntegerType(ogWidth),
-          ((uint64_t)1 << (fType.getFPMantissaWidth() - 1)) - 1);
+      IntegerAttr mask4 = buildIntAttr(
+          b, ((uint64_t)1 << (fType.getFPMantissaWidth() - 1)) - 1);
       arith::ConstantOp constOp4 = b.create<arith::ConstantOp>(mask4);
       // debias exponent
       arith::SubIOp debiasedExp = b.create<arith::SubIOp>(expBits, constOp4);
 
       // shift exponent out
       // we leave one bit to add in the implicit 1 to the significand
-      IntegerAttr shift_amount2 = b.getIntegerAttr(b.getIntegerType(ogWidth),
-                                                   fType.getFPMantissaWidth());
+      IntegerAttr shift_amount2 = buildIntAttr(b, fType.getFPMantissaWidth());
       arith::ConstantOp constOp5 = b.create<arith::ConstantOp>(shift_amount2);
-      arith::ShLIOp mantissa = b.create<arith::ShLIOp>(signless, constOp5);
+      arith::ShLIOp mantissa = b.create<arith::ShLIOp>(intermediate, constOp5);
 
       // add implicit one
+      // sign mask (0b1000...0)
+      IntegerAttr sign_mask = buildIntAttr(b, (uint64_t)1 << (ogWidth - 1));
+      arith::ConstantOp sign_constOp2 = b.create<arith::ConstantOp>(sign_mask);
       arith::OrIOp decoded_mantissa =
-          b.create<arith::OrIOp>(mantissa, sign_constOp);
+          b.create<arith::OrIOp>(mantissa, sign_constOp2);
 
-      // compute shift amount to convert to fixed point
-      DatatypeInfoAttr dtInfo =
-          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
-
-      IntegerAttr fixP_exp =
-          b.getIntegerAttr(b.getIntegerType(ogWidth), dtInfo.getExponent());
-      arith::ConstantOp constOp6 = b.create<arith::ConstantOp>(fixP_exp);
-      arith::SubIOp shift_amount3 =
-          b.create<arith::SubIOp>(constOp6, debiasedExp);
+      if (ogWidth >= dtInfo.getBitwidth()) {
+        // compute shift amount to convert to fixed point
+        // since arith.trunci truncates the most significant bits, we account
+        // for that in this shift
+        IntegerAttr fixP_exp = buildIntAttr(
+            b, dtInfo.getExponent() + (ogWidth - dtInfo.getBitwidth()));
+        arith::ConstantOp constOp6 = b.create<arith::ConstantOp>(fixP_exp);
+        arith::SubIOp shift_amount3 =
+            b.create<arith::SubIOp>(constOp6, debiasedExp);
+      } else {
+      }
 
       // final shift
       arith::ShRUIOp fixP =
           b.create<arith::ShRUIOp>(decoded_mantissa, shift_amount3);
 
-      //NOTE: If shift_amount3 == 0 and isNegativeOp == 1 the number is
-      // already converted, otherwise we need to do 2's complement
+      // if the number is unsigned, we are done
+      if (!dtInfo.getSignd()) {
+        rewriter.replaceOp(op, fixP);
+        return success();
+      }
+
+      scf::IfOp twos_complement = b.create<scf::IfOp>(
+          isNegative.getResult(), /*then*/
+          [&](OpBuilder &b, Location loc) {
+            // 2's complement conversion
+            IntegerAttr ones_mask = buildIntAttr(b, -1);
+            arith::ConstantOp constOp7 =
+                b.create<arith::ConstantOp>(loc, ones_mask);
+            arith::XOrIOp unaryNot =
+                b.create<arith::XOrIOp>(loc, constOp7, fixP);
+
+            IntegerAttr one = buildIntAttr(b, 1);
+            arith::ConstantOp constOp8 = b.create<arith::ConstantOp>(loc, one);
+            arith::AddIOp complement =
+                b.create<arith::AddIOp>(loc, constOp8, unaryNot);
+
+            b.create<scf::YieldOp>(loc, complement.getResult());
+          }, /*else*/
+          [&](OpBuilder &b, Location loc) {
+            b.create<scf::YieldOp>(loc, fixP.getResult());
+          });
+
+      rewriter.replaceOp(op, twos_complement);
+      return success();
     }
   };
 
@@ -214,12 +257,12 @@ public:
 
     ConversionTarget target(*context);
     target.markUnknownOpDynamicallyLegal([](Operation *op) { return true; });
-    target.addIllegalOp<AddOp>();
+    target.addIllegalOp<AddOp, CastOp>();
     // target.addIllegalDialect<TaffoDialect>();
 
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context, 32);
-    patterns.add<ConvertAdd>(typeConverter, context);
+    patterns.add<ConvertAdd, ConvertCast>(typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();
