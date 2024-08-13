@@ -32,6 +32,10 @@ def Taffo_DatatypeInfoAttr
             is >= 0 at both ends)
         - exponent
         - bitwidth
+        - difference between smallest and largest exponent. This is optional because
+            if the range contains zero, then the smallest exponent depends on the datatype.
+            This needs to be tracked because shift operations in arith will produce poison
+            if the shift amount is larger than the operand bitwidth.
     }];
 
     let mnemonic = "dtInfo";
@@ -39,7 +43,8 @@ def Taffo_DatatypeInfoAttr
     let parameters = (ins
         "bool":$signd,
         "int":$exponent,
-        "int":$bitwidth);
+        "int":$bitwidth,
+        "std::optional<int>":$expDiff);
 
     let assemblyFormat = "`<` struct(params) `>`";
     //let assemblyFormat = "`<` $signd `,` $exponent `,` $bitwidth `>`";

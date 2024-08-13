@@ -203,7 +203,7 @@ public:
       arith::OrIOp decoded_mantissa =
           b.create<arith::OrIOp>(mantissa, sign_constOp2);
 
-      if (ogWidth >= dtInfo.getBitwidth()) {
+      //if (ogWidth >= dtInfo.getBitwidth()) {
         // compute shift amount to convert to fixed point
         // since arith.trunci truncates the most significant bits, we account
         // for that in this shift
@@ -212,8 +212,8 @@ public:
         arith::ConstantOp constOp6 = b.create<arith::ConstantOp>(fixP_exp);
         arith::SubIOp shift_amount3 =
             b.create<arith::SubIOp>(constOp6, debiasedExp);
-      } else {
-      }
+      //} else {
+      //}
 
       // final shift
       arith::ShRUIOp fixP =

@@ -77,12 +77,20 @@ public:
       // temporary hack, is it good enough?
       int bitwidth = maxSignificantDigits;
 
+      bool rangeContainsZero = (lf * ls) <= 0;
+      // if the range contains zero, the smallest exponent depends on the
+      // original (float) datatype, which we don't know at this stage
+      std::optional<int> exp_diff = rangeContainsZero
+                                        ? std::nullopt
+                                        : std::optional<int>(std::abs(lf - ls));
+
       // the left-most bit of an  integer has 2^(bitwidth-1) weight,
       // we want the leftmost bit of the fixed-point integer to have
       // weight 2^max_exp, hence the "-1"
       int exponent = max_exp - (bitwidth - 1);
-      op->setAttr("DatatypeInfo", DatatypeInfoAttr::get(op->getContext(), signd,
-                                                        exponent, bitwidth));
+      op->setAttr("DatatypeInfo",
+                  DatatypeInfoAttr::get(op->getContext(), signd, exponent,
+                                        bitwidth, exp_diff));
 
       return mlir::WalkResult::advance();
     });
