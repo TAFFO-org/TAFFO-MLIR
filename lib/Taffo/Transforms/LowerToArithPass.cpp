@@ -136,7 +136,7 @@ public:
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
       FloatType fType = ::llvm::dyn_cast<FloatType>(op.getFrom().getType());
-      unsigned ogWidth = fType.getWidth();
+      int ogWidth = fType.getWidth();
 
       if (ogWidth > 64) {
         op->emitOpError()
@@ -162,186 +162,97 @@ public:
         return b.getIntegerAttr(b.getIntegerType(dtInfo.getBitwidth()), value);
       };
 
+      uint64_t exponent_mask =
+          ((uint64_t)1 << (ogWidth - 1)) +
+          ((uint64_t)-1 >> (fType.getFPMantissaWidth() + 1));
+
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(ogWidth), op.getFrom());
 
-      // declared outside for scoping reasons
-      arith::CmpIOp isNegative;
-      Value intermediate = bitcast.getResult();
+      // zero out exponent
+      arith::ConstantOp exp_mask_const =
+          b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
+      arith::AndIOp no_exp =
+          b.create<arith::AndIOp>(bitcast, exp_mask_const);
 
-      if (dtInfo.getSignd()) {
-        // sign mask (0b1000...0)
-        IntegerAttr sign_mask = buildIntAttr(b, (uint64_t)1 << (ogWidth - 1));
-        arith::ConstantOp sign_constOp = b.create<arith::ConstantOp>(sign_mask);
+      // set exponent
+      uint64_t new_exp = ((uint64_t)(dtInfo.getBitwidth() - 2))
+                         << (ogWidth - fType.getFPMantissaWidth() - 1);
+      arith::ConstantOp new_exp_const =
+          b.create<arith::ConstantOp>(buildIntAttr(b, new_exp));
+      arith::OrIOp normalized = b.create<arith::OrIOp>(no_exp, new_exp_const);
 
-        // check sign
-        arith::AndIOp andOp = b.create<arith::AndIOp>(sign_constOp, bitcast);
-        isNegative = b.create<arith::CmpIOp>(arith::CmpIPredicate::eq, andOp,
-                                             sign_constOp);
+      arith::BitcastOp bitcast_back =
+          b.create<arith::BitcastOp>(fType, normalized);
 
-        // inverse of sign mask (0b01111...1)
-        IntegerAttr mask2 = buildIntAttr(b, ((uint64_t)1 << (ogWidth - 1)) - 1);
-        arith::ConstantOp constOp2 = b.create<arith::ConstantOp>(mask2);
-        // zero out sign bit
-        arith::AndIOp signless = b.create<arith::AndIOp>(constOp2, bitcast);
+      arith::FPToSIOp conv = b.create<arith::FPToSIOp>(
+          b.getIntegerType(dtInfo.getBitwidth()), bitcast_back);
 
-        intermediate = signless.getResult();
-      }
+      // inverse of sign mask (0b01111...1)
+      IntegerAttr inv_sign_mask =
+          buildIntAttr(b, ((uint64_t)1 << (ogWidth - 1)) - 1);
+      arith::ConstantOp inv_sign_mask_const =
+          b.create<arith::ConstantOp>(inv_sign_mask);
+      // zero out sign bit
+      arith::AndIOp signless =
+          b.create<arith::AndIOp>(bitcast, inv_sign_mask_const);
 
       // shift mantissa out
       IntegerAttr shift_amount =
           buildIntAttr(b, ogWidth - (fType.getFPMantissaWidth() + 1));
-      arith::ConstantOp constOp3 = b.create<arith::ConstantOp>(shift_amount);
-      arith::ShRUIOp expBits = b.create<arith::ShRUIOp>(intermediate, constOp3);
+      arith::ConstantOp shift_amount_const =
+          b.create<arith::ConstantOp>(shift_amount);
+      arith::ShRUIOp expBits =
+          b.create<arith::ShRUIOp>(signless, shift_amount_const);
 
-      // exponent bias (for f32, this is 2^(8 - 1) - 1 = 127)
-      IntegerAttr mask4 = buildIntAttr(
-          b, ((uint64_t)1 << (fType.getFPMantissaWidth() - 1)) - 1);
-      arith::ConstantOp constOp4 = b.create<arith::ConstantOp>(mask4);
-      // debias exponent
-      arith::SubIOp debiasedExp = b.create<arith::SubIOp>(expBits, constOp4);
-
-      // shift exponent out
-      // we leave one bit to add in the implicit 1 to the significand
-      IntegerAttr shift_amount2 = buildIntAttr(b, fType.getFPMantissaWidth());
-      arith::ConstantOp constOp5 = b.create<arith::ConstantOp>(shift_amount2);
-      arith::ShLIOp mantissa = b.create<arith::ShLIOp>(intermediate, constOp5);
-
-      // add implicit one
-      // sign mask (0b1000...0)
-      IntegerAttr sign_mask = buildIntAttr(b, (uint64_t)1 << (ogWidth - 1));
-      arith::ConstantOp sign_constOp2 = b.create<arith::ConstantOp>(sign_mask);
-      arith::OrIOp decoded_mantissa =
-          b.create<arith::OrIOp>(mantissa, sign_constOp2);
-
-      // compute shift amount to convert to fixed point
-      IntegerAttr fixP_exp = buildIntAttr(b, dtInfo.getExponent()));
-      arith::ConstantOp fixP_exp_const = b.create<arith::ConstantOp>(fixP_exp);
+      IntegerAttr fixp_exp = buildIntAttr(b, dtInfo.getExponent());
+      arith::ConstantOp fixp_exp_const = b.create<arith::ConstantOp>(fixp_exp);
       arith::SubIOp final_shift_amount =
-          b.create<arith::SubIOp>(fixP_exp_const, debiasedExp);
-
-      int smallestExp = std::floor(std::log2(
-          convertToDouble(APFloat::getSmallest(fType.getSemantics(), false))));
-
-      int expDiff = dtInfo.getExpDiff()
-                        ? dtInfo.getExpDiff()
-                        : std::abs(dtInfo.getExponent() - smallestExp);
+          b.create<arith::SubIOp>(fixp_exp_const, expBits);
 
       // if the following is true condition is true, we might shift by a
       // number larger than the bitwidth, which will produce poison, so we
       // need to check and return zero if that is the case
-      if (expDiff >= dtInfo.getBitwidth()) {
+      if (dtInfo.getExpDiff() >= dtInfo.getBitwidth()) {
 
-        AddShiftBoundCheck(b, rewriter, final_shift_amount, dtInfo.getBitwidth())
-        IntegerAttr dtBitwidth = buildIntAttr(b, dtInfo.getBitwidth());
         arith::ConstantOp dtBitwidth_const =
-            b.create<arith::ConstantOp>(dtBitwidth);
+            b.create<arith::ConstantOp>(buildIntAttr(b, dtInfo.getBitwidth()));
         arith::CmpIOp oob_shift = b.create<arith::CmpIOp>(
-            arith::CmpIPredicate::geq, final_shift_amount, dtBitwidth_const);
+            arith::CmpIPredicate::uge, final_shift_amount, dtBitwidth_const);
 
-        scf::IfOp check_shift = b.create<scf::IfOp>(
-            oob_shift.getResult(), /*then*/
-            [&](OpBuilder &b, Location loc) {
-              // return zero
-              IntegerAttr zero = buildDestIntAttr(b, 0);
-              arith::ConstantOp zero_const = b.create<arith::ConstantOp>(zero);
-              b.create<scf::YieldOp>(loc, zero_const.getResult());
-            }, /*else*/
-            [&](OpBuilder &b, Location loc) {
-              // otherwise continue as normal with trunc/ext then shift
-            });
+        Value fsa = final_shift_amount;
+        if (ogWidth != dtInfo.getBitwidth()) {
+          fsa = ogWidth > dtInfo.getBitwidth()
+                    ? b.create<arith::TruncIOp>(
+                           b.getIntegerType(dtInfo.getBitwidth()), fsa)
+                          .getResult()
+                    : b.create<arith::ExtUIOp>(b.getIntegerType(ogWidth), fsa)
+                          .getResult();
+        }
+
+        arith::ShRSIOp res = b.create<arith::ShRSIOp>(conv.getResult(), fsa);
+
+        arith::ConstantOp zero_const =
+            b.create<arith::ConstantOp>(buildDestIntAttr(b, 0));
+        arith::SelectOp check_shift =
+            b.create<arith::SelectOp>(oob_shift, zero_const, res);
+
         rewriter.replaceOp(op, check_shift);
         return success();
       }
 
-      Value res;
-      // float type is wider than fixpoint type
-      if (ogWidth >= dtInfo.getBitwidth()) {
-
-        // since arith.trunci truncates the most significant bits, we account
-        // for that in this shift
-        IntegerAttr shift_by = buildIntAttr(
-            b, dtInfo.getExponent() + (ogWidth - dtInfo.getBitwidth()));
-        arith::SubIOp final_shift_amount =
-            b.create<arith::SubIOp>(shift_by, debiasedExp);
-        arith::ConstantOp fixP_exp_const =
-            b.create<arith::ConstantOp>(fixP_exp);
-        arith::ShRUIOp fixP =
-            b.create<arith::ShRUIOp>(decoded_mantissa, shift_amount3);
-        arith::TruncIOp final = b.create<arith::TruncIOp>(
-            b.getIntegerType(dtInfo.getBitwidth()), fixP);
-        res = final;
-      } else {
+      Value fsa = final_shift_amount;
+      if (ogWidth != dtInfo.getBitwidth()) {
+        fsa = ogWidth > dtInfo.getBitwidth()
+                  ? b.create<arith::TruncIOp>(
+                         b.getIntegerType(dtInfo.getBitwidth()), fsa)
+                        .getResult()
+                  : b.create<arith::ExtUIOp>(b.getIntegerType(ogWidth), fsa)
+                        .getResult();
       }
-
-      // final shift
-      arith::ShRUIOp fixP =
-          b.create<arith::ShRUIOp>(decoded_mantissa, shift_amount3);
-
-      // if the number is unsigned, we are done
-      if (!dtInfo.getSignd()) {
-        rewriter.replaceOp(op, fixP);
-        return success();
-      }
-
-      scf::IfOp twos_complement = b.create<scf::IfOp>(
-          isNegative.getResult(), /*then*/
-          [&](OpBuilder &b, Location loc) {
-            // 2's complement conversion
-            IntegerAttr ones_mask = buildDestIntAttr(b, -1);
-            arith::ConstantOp constOp7 =
-                b.create<arith::ConstantOp>(loc, ones_mask);
-            arith::XOrIOp unaryNot =
-                b.create<arith::XOrIOp>(loc, constOp7, fixP);
-
-            IntegerAttr one = buildDestIntAttr(b, 1);
-            arith::ConstantOp constOp8 = b.create<arith::ConstantOp>(loc, one);
-            arith::AddIOp complement =
-                b.create<arith::AddIOp>(loc, constOp8, unaryNot);
-
-            b.create<scf::YieldOp>(loc, complement.getResult());
-          }, /*else*/
-          [&](OpBuilder &b, Location loc) {
-            b.create<scf::YieldOp>(loc, fixP.getResult());
-          });
-
-      rewriter.replaceOp(op, twos_complement);
+      arith::ShRSIOp res = b.create<arith::ShRSIOp>(conv, fsa);
+      rewriter.replaceOp(op, res);
       return success();
-    }
-
-    Value ConvertToNarrower() {}
-
-    Value ConvertToWider() {}
-
-    Operation
-    AddShiftBoundCheck(OpBuilder b, ConversionPatternRewriter &rewriter,
-                       Value shift_amount, int destinationBitwidth,
-                       function_ref<void(OpBuilder &, Location)> elseBlock) {
-
-      IntegerAttr dtBitwidth = b.getIntegerAttr(
-          shift_amount.getType(), destinationBitwidth);
-      arith::ConstantOp dtBitwidth_const =
-          b.create<arith::ConstantOp>(dtBitwidth);
-      arith::CmpIOp oob_shift = b.create<arith::CmpIOp>(
-          arith::CmpIPredicate::uge, shift_amount, dtBitwidth_const);
-
-      scf::IfOp check_shift = b.create<scf::IfOp>(
-          oob_shift.getResult(), /*then*/
-          [&](OpBuilder &b, Location loc) {
-            // return zero
-            IntegerAttr zero = buildDestIntAttr(b, 0);
-            arith::ConstantOp zero_const = b.create<arith::ConstantOp>(zero);
-            b.create<scf::YieldOp>(loc, zero_const.getResult());
-          }, /*else*/
-          elseBlock);
-    }
-
-    auto TruncAndShiftMantissa() {
-
-    }
-
-    auto ShiftMantissa() {
-
     }
   };
 
