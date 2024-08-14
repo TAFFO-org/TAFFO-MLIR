@@ -210,10 +210,17 @@ public:
       arith::SubIOp final_shift_amount =
           b.create<arith::SubIOp>(fixp_exp_const, expBits);
 
+      int smallestExp = std::floor(std::log2(
+          convertToDouble(APFloat::getSmallest(fType.getSemantics(), false))));
+
+      int expDiff = dtInfo.getExpDiff()
+                        ? dtInfo.getExpDiff().value()
+                        : std::abs(dtInfo.getExponent() - smallestExp);
+
       // if the following is true condition is true, we might shift by a
       // number larger than the bitwidth, which will produce poison, so we
       // need to check and return zero if that is the case
-      if (dtInfo.getExpDiff() >= dtInfo.getBitwidth()) {
+      if (expDiff >= dtInfo.getBitwidth()) {
 
         arith::ConstantOp dtBitwidth_const =
             b.create<arith::ConstantOp>(buildIntAttr(b, dtInfo.getBitwidth()));
