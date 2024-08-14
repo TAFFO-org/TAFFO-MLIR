@@ -47,5 +47,23 @@ def LowerToArithPass
 
 }
 
+def DatatypeOptimizationPass
+    : Pass<"dt-optimization">
+{
+    let summary = "Optimize datatypes by modifying the dtInfo attribute.";
+
+    let description = [{
+        Currently, this pass only sets the bitwidth of all values to 32 bit.
+        In the future, this can be used as a hook to do all sorts of optimizations:
+        shift minimization (datatype merging), overflow prevention, precision-driven
+        datatype tuning etc...
+    }];
+
+    let dependentDialects = [
+        "mlir::taffo::TaffoDialect",
+    ];
+
+}
+
 
 #endif // TAFFO_TRANSFORMS_PASSES_TD

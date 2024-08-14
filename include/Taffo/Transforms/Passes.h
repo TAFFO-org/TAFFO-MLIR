@@ -3,6 +3,7 @@
 
 #include "Taffo/Transforms/ValueRangeAnalysisPass.h"
 #include "Taffo/Transforms/LowerToArithPass.h"
+#include "Taffo/Transforms/DatatypeOptimizationPass.h"
 
 namespace mlir::taffo
 {

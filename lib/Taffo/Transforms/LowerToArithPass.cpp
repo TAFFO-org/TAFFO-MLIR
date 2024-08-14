@@ -172,8 +172,7 @@ public:
       // zero out exponent
       arith::ConstantOp exp_mask_const =
           b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
-      arith::AndIOp no_exp =
-          b.create<arith::AndIOp>(bitcast, exp_mask_const);
+      arith::AndIOp no_exp = b.create<arith::AndIOp>(bitcast, exp_mask_const);
 
       // set exponent
       uint64_t new_exp = ((uint64_t)(dtInfo.getBitwidth() - 2))
@@ -210,8 +209,9 @@ public:
       arith::SubIOp final_shift_amount =
           b.create<arith::SubIOp>(fixp_exp_const, expBits);
 
-      int smallestExp = std::floor(std::log2(
-          convertToDouble(APFloat::getSmallest(fType.getSemantics(), false))));
+      int smallestExp = std::floor(
+          std::log2(APFloat::getSmallest(fType.getFloatSemantics(), false)
+                        .convertToDouble()));
 
       int expDiff = dtInfo.getExpDiff()
                         ? dtInfo.getExpDiff().value()
