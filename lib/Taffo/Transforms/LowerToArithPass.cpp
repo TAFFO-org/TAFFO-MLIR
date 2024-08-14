@@ -144,12 +144,23 @@ public:
         return failure();
       }
 
+      DatatypeInfoAttr dtInfo =
+          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+
+      if (dtInfo.getBitwidth() > 64) {
+        op->emitOpError()
+            << "Conversion to fixpoints bigger than 64 is not yet supported";
+        return failure();
+      }
+
       auto buildIntAttr = [ogWidth](Builder b, int64_t value) -> IntegerAttr {
         return b.getIntegerAttr(b.getIntegerType(ogWidth), value);
       };
 
-      DatatypeInfoAttr dtInfo =
-          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+      auto buildDestIntAttr = [dtInfo](Builder b,
+                                       int64_t value) -> IntegerAttr {
+        return b.getIntegerAttr(b.getIntegerType(dtInfo.getBitwidth()), value);
+      };
 
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(ogWidth), op.getFrom());
@@ -203,17 +214,65 @@ public:
       arith::OrIOp decoded_mantissa =
           b.create<arith::OrIOp>(mantissa, sign_constOp2);
 
-      //if (ogWidth >= dtInfo.getBitwidth()) {
-        // compute shift amount to convert to fixed point
+      // compute shift amount to convert to fixed point
+      IntegerAttr fixP_exp = buildIntAttr(b, dtInfo.getExponent()));
+      arith::ConstantOp fixP_exp_const = b.create<arith::ConstantOp>(fixP_exp);
+      arith::SubIOp final_shift_amount =
+          b.create<arith::SubIOp>(fixP_exp_const, debiasedExp);
+
+      int smallestExp = std::floor(std::log2(
+          convertToDouble(APFloat::getSmallest(fType.getSemantics(), false))));
+
+      int expDiff = dtInfo.getExpDiff()
+                        ? dtInfo.getExpDiff()
+                        : std::abs(dtInfo.getExponent() - smallestExp);
+
+      // if the following is true condition is true, we might shift by a
+      // number larger than the bitwidth, which will produce poison, so we
+      // need to check and return zero if that is the case
+      if (expDiff >= dtInfo.getBitwidth()) {
+
+        AddShiftBoundCheck(b, rewriter, final_shift_amount, dtInfo.getBitwidth())
+        IntegerAttr dtBitwidth = buildIntAttr(b, dtInfo.getBitwidth());
+        arith::ConstantOp dtBitwidth_const =
+            b.create<arith::ConstantOp>(dtBitwidth);
+        arith::CmpIOp oob_shift = b.create<arith::CmpIOp>(
+            arith::CmpIPredicate::geq, final_shift_amount, dtBitwidth_const);
+
+        scf::IfOp check_shift = b.create<scf::IfOp>(
+            oob_shift.getResult(), /*then*/
+            [&](OpBuilder &b, Location loc) {
+              // return zero
+              IntegerAttr zero = buildDestIntAttr(b, 0);
+              arith::ConstantOp zero_const = b.create<arith::ConstantOp>(zero);
+              b.create<scf::YieldOp>(loc, zero_const.getResult());
+            }, /*else*/
+            [&](OpBuilder &b, Location loc) {
+              // otherwise continue as normal with trunc/ext then shift
+            });
+        rewriter.replaceOp(op, check_shift);
+        return success();
+      }
+
+      Value res;
+      // float type is wider than fixpoint type
+      if (ogWidth >= dtInfo.getBitwidth()) {
+
         // since arith.trunci truncates the most significant bits, we account
         // for that in this shift
-        IntegerAttr fixP_exp = buildIntAttr(
+        IntegerAttr shift_by = buildIntAttr(
             b, dtInfo.getExponent() + (ogWidth - dtInfo.getBitwidth()));
-        arith::ConstantOp constOp6 = b.create<arith::ConstantOp>(fixP_exp);
-        arith::SubIOp shift_amount3 =
-            b.create<arith::SubIOp>(constOp6, debiasedExp);
-      //} else {
-      //}
+        arith::SubIOp final_shift_amount =
+            b.create<arith::SubIOp>(shift_by, debiasedExp);
+        arith::ConstantOp fixP_exp_const =
+            b.create<arith::ConstantOp>(fixP_exp);
+        arith::ShRUIOp fixP =
+            b.create<arith::ShRUIOp>(decoded_mantissa, shift_amount3);
+        arith::TruncIOp final = b.create<arith::TruncIOp>(
+            b.getIntegerType(dtInfo.getBitwidth()), fixP);
+        res = final;
+      } else {
+      }
 
       // final shift
       arith::ShRUIOp fixP =
@@ -229,13 +288,13 @@ public:
           isNegative.getResult(), /*then*/
           [&](OpBuilder &b, Location loc) {
             // 2's complement conversion
-            IntegerAttr ones_mask = buildIntAttr(b, -1);
+            IntegerAttr ones_mask = buildDestIntAttr(b, -1);
             arith::ConstantOp constOp7 =
                 b.create<arith::ConstantOp>(loc, ones_mask);
             arith::XOrIOp unaryNot =
                 b.create<arith::XOrIOp>(loc, constOp7, fixP);
 
-            IntegerAttr one = buildIntAttr(b, 1);
+            IntegerAttr one = buildDestIntAttr(b, 1);
             arith::ConstantOp constOp8 = b.create<arith::ConstantOp>(loc, one);
             arith::AddIOp complement =
                 b.create<arith::AddIOp>(loc, constOp8, unaryNot);
@@ -248,6 +307,41 @@ public:
 
       rewriter.replaceOp(op, twos_complement);
       return success();
+    }
+
+    Value ConvertToNarrower() {}
+
+    Value ConvertToWider() {}
+
+    Operation
+    AddShiftBoundCheck(OpBuilder b, ConversionPatternRewriter &rewriter,
+                       Value shift_amount, int destinationBitwidth,
+                       function_ref<void(OpBuilder &, Location)> elseBlock) {
+
+      IntegerAttr dtBitwidth = b.getIntegerAttr(
+          shift_amount.getType(), destinationBitwidth);
+      arith::ConstantOp dtBitwidth_const =
+          b.create<arith::ConstantOp>(dtBitwidth);
+      arith::CmpIOp oob_shift = b.create<arith::CmpIOp>(
+          arith::CmpIPredicate::uge, shift_amount, dtBitwidth_const);
+
+      scf::IfOp check_shift = b.create<scf::IfOp>(
+          oob_shift.getResult(), /*then*/
+          [&](OpBuilder &b, Location loc) {
+            // return zero
+            IntegerAttr zero = buildDestIntAttr(b, 0);
+            arith::ConstantOp zero_const = b.create<arith::ConstantOp>(zero);
+            b.create<scf::YieldOp>(loc, zero_const.getResult());
+          }, /*else*/
+          elseBlock);
+    }
+
+    auto TruncAndShiftMantissa() {
+
+    }
+
+    auto ShiftMantissa() {
+
     }
   };
 
