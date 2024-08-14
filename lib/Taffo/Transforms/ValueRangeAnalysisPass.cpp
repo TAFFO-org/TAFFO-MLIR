@@ -77,7 +77,8 @@ public:
       // temporary hack, is it good enough?
       int bitwidth = maxSignificantDigits;
 
-      bool rangeContainsZero = (lf * ls) <= 0;
+      bool rangeContainsZero =
+          (range.first.convertToDouble() * range.second.convertToDouble()) <= 0;
       // if the range contains zero, the smallest exponent depends on the
       // original (float) datatype, which we don't know at this stage
       std::optional<int> exp_diff = rangeContainsZero

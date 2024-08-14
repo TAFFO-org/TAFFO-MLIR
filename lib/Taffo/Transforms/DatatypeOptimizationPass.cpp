@@ -15,13 +15,46 @@ using namespace ::mlir::taffo;
 
 namespace mlir {
 class DatatypeOptimizationPass
-    : public mlir::taffo::impl::DatatypeOptimizationPassBase<DatatypeOptimizationPass> {
+    : public mlir::taffo::impl::DatatypeOptimizationPassBase<
+          DatatypeOptimizationPass> {
 public:
   using DatatypeOptimizationPassBase::DatatypeOptimizationPassBase;
 
-  void runOnOperation() override {}
+  void runOnOperation() override {
+    mlir::Operation *module = getOperation();
 
+    // this will become a parameter captured from pass invocation at some point
+    const int targetBitwidth = 32;
+
+    auto result = module->walk([&](mlir::Operation *op) {
+      if (!llvm::isa<TaffoDialect>(op->getDialect())) {
+        return mlir::WalkResult::advance();
+      }
+
+      DatatypeInfoAttr dtInfo =
+          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+      if (dtInfo == nullptr) {
+        op->emitOpError() << "This op doesn't have a DatatypeInfo attribute";
+        return mlir::WalkResult::interrupt();
+      }
+      int bitwidthDiff = targetBitwidth - dtInfo.getBitwidth();
+      int newExp = dtInfo.getExponent() - bitwidthDiff;
+      int newBitwidth = targetBitwidth;
+
+      std::optional<int> newExpDiff =
+          dtInfo.getExpDiff() ? std::optional<int>(std::abs(
+                                    dtInfo.getExpDiff().value() - bitwidthDiff))
+                              : std::nullopt;
+
+      op->setAttr("DatatypeInfo",
+                  DatatypeInfoAttr::get(op->getContext(), dtInfo.getSignd(),
+                                        newExp, newBitwidth, newExpDiff));
+      return mlir::WalkResult::advance();
+    });
+
+    if (result.wasInterrupted())
+      signalPassFailure();
+  }
 };
-
 
 } // namespace mlir
