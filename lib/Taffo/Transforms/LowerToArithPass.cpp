@@ -40,10 +40,11 @@ public:
               return std::nullopt;
             }
 
-            auto castOp = builder.create<mlir::UnrealizedConversionCastOp>(
-                loc, resultType, inputs);
+            auto CastToRealOp =
+                builder.create<mlir::UnrealizedConversionCastOp>(
+                    loc, resultType, inputs);
 
-            return castOp.getResult(0);
+            return CastToRealOp.getResult(0);
           });
 
       addSourceMaterialization(
@@ -54,10 +55,11 @@ public:
               return std::nullopt;
             }
 
-            auto castOp = builder.create<mlir::UnrealizedConversionCastOp>(
-                loc, resultType, inputs);
+            auto CastToRealOp =
+                builder.create<mlir::UnrealizedConversionCastOp>(
+                    loc, resultType, inputs);
 
-            return castOp.getResult(0);
+            return CastToRealOp.getResult(0);
           });
     }
   };
@@ -123,14 +125,14 @@ public:
       return success();
     }
   };
-  struct ConvertCast : public OpConversionPattern<CastOp> {
-    ConvertCast(mlir::MLIRContext *context)
-        : OpConversionPattern<CastOp>(context) {}
+  struct ConvertCastToReal : public OpConversionPattern<CastToRealOp> {
+    ConvertCastToReal(mlir::MLIRContext *context)
+        : OpConversionPattern<CastToRealOp>(context) {}
 
     using OpConversionPattern::OpConversionPattern;
 
     LogicalResult
-    matchAndRewrite(CastOp op, OpAdaptor adaptor,
+    matchAndRewrite(CastToRealOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
@@ -162,19 +164,21 @@ public:
         return b.getIntegerAttr(b.getIntegerType(dtInfo.getBitwidth()), value);
       };
 
-      uint64_t exponent_mask =
-          ((uint64_t)1 << (ogWidth - 1)) +
-          ((uint64_t)-1 >> (fType.getFPMantissaWidth() + 1));
-
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(ogWidth), op.getFrom());
 
       // zero out exponent
+      uint64_t exponent_mask =
+          // 0b1000...0
+          ((uint64_t)1 << (ogWidth - 1)) +
+          // 0b((0)^exp_size+1) 1111...1
+          ((uint64_t)-1 >> (fType.getFPMantissaWidth() + 1));
       arith::ConstantOp exp_mask_const =
           b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
       arith::AndIOp no_exp = b.create<arith::AndIOp>(bitcast, exp_mask_const);
 
-      // set exponent
+      // set exponent (for f32, we set to 30 such that we have room for the sign
+      // bit)
       uint64_t new_exp = ((uint64_t)(dtInfo.getBitwidth() - 2))
                          << (ogWidth - fType.getFPMantissaWidth() - 1);
       arith::ConstantOp new_exp_const =
@@ -269,12 +273,12 @@ public:
 
     ConversionTarget target(*context);
     target.markUnknownOpDynamicallyLegal([](Operation *op) { return true; });
-    target.addIllegalOp<AddOp, CastOp>();
+    target.addIllegalOp<AddOp, CastToRealOp>();
     // target.addIllegalDialect<TaffoDialect>();
 
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context, 32);
-    patterns.add<ConvertAdd, ConvertCast>(typeConverter, context);
+    patterns.add<ConvertAdd, ConvertCastToReal>(typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();

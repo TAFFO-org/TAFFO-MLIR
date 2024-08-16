@@ -23,16 +23,16 @@ using namespace ::mlir::taffo;
 namespace mlir::taffo
 {
 
-  void CastOp::inferTaffoRanges(
+  void CastToRealOp::inferTaffoRanges(
       llvm::ArrayRef<NtvRange> argRanges,
       mlir::taffo::SetTaffoRangeFn setResultRange)
   {
-    // Since CastOp's ranges are inferred from its attributes (NOT its
+    // Since CastToRealOp's ranges are inferred from its attributes (NOT its
     // operands!), we can discard ArgRanges and use accessors methods instead
     setResultRange(getResult(), NtvRange(getMin(), getMax()));
   }
 
-  void ConvertOp::inferTaffoRanges(
+  void CastToFloatOp::inferTaffoRanges(
       llvm::ArrayRef<NtvRange> argRanges,
       mlir::taffo::SetTaffoRangeFn setResultRange)
   {

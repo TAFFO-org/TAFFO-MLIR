@@ -24,11 +24,11 @@ def TaffoReal :
 class Taffo_Op<string mnemonic, list<Trait> traits = []> :
     Op<Taffo_Dialect, mnemonic, traits>;
 
-def Taffo_CastOp : Taffo_Op<"cast",
+def Taffo_CastToRealOp : Taffo_Op<"cast2real",
     [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
-    let summary = "taffo assignment summary";
+    let summary = "taffo cast2real summary";
     let description = [{
-        taffo assignment description
+        taffo cast2real description
     }];
 
     let arguments = (ins FloatLike:$from,
@@ -41,11 +41,11 @@ def Taffo_CastOp : Taffo_Op<"cast",
                                "type($from) `->`  type($res)";
 }
 
-def Taffo_ConvertOp : Taffo_Op<"convert",
+def Taffo_CastToFloatOp : Taffo_Op<"cast2float",
     [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
-    let summary = "taffo convert summary";
+    let summary = "taffo cast2real summary";
     let description = [{
-        taffo convert description
+        taffo cast2real description
     }];
 
     let arguments = (ins TaffoReal:$from);

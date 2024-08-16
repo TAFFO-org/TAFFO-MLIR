@@ -41,6 +41,7 @@ public:
       int newExp = dtInfo.getExponent() - bitwidthDiff;
       int newBitwidth = targetBitwidth;
 
+      // unsure about this
       std::optional<int> newExpDiff =
           dtInfo.getExpDiff() ? std::optional<int>(std::abs(
                                     dtInfo.getExpDiff().value() - bitwidthDiff))
