@@ -213,9 +213,8 @@ public:
       arith::SubIOp final_shift_amount =
           b.create<arith::SubIOp>(fixp_exp_const, expBits);
 
-      int smallestExp = std::floor(
-          std::log2(APFloat::getSmallest(fType.getFloatSemantics(), false)
-                        .convertToDouble()));
+      int smallestExp =
+          llvm::APFloat::semanticsMinExponent(fType.getFloatSemantics());
 
       int expDiff = dtInfo.getExpDiff()
                         ? dtInfo.getExpDiff().value()
@@ -225,7 +224,6 @@ public:
       // number larger than the bitwidth, which will produce poison, so we
       // need to check and return zero if that is the case
       if (expDiff >= dtInfo.getBitwidth()) {
-
         arith::ConstantOp dtBitwidth_const =
             b.create<arith::ConstantOp>(buildIntAttr(b, dtInfo.getBitwidth()));
         arith::CmpIOp oob_shift = b.create<arith::CmpIOp>(
@@ -267,18 +265,137 @@ public:
     }
   };
 
+  struct ConvertCastToFloat : public OpConversionPattern<CastToFloatOp> {
+    ConvertCastToFloat(mlir::MLIRContext *context)
+        : OpConversionPattern<CastToFloatOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(CastToFloatOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+      FloatType fType = ::llvm::dyn_cast<FloatType>(op.getRes().getType());
+
+      int targetWidth = fType.getWidth();
+
+      DatatypeInfoAttr dtInfo =
+          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+
+      if (dtInfo.getBitwidth() > 64) {
+        op->emitOpError()
+            << "Conversion from fixpoints bigger than 64 is not yet supported";
+        return failure();
+      }
+
+      if (targetWidth > 64) {
+        op->emitOpError()
+            << "Conversion to floats bigger than f64 is not yet supported";
+        return failure();
+      }
+
+      if (dtInfo.getExponent() >
+              llvm::APFloat::semanticsMaxExponent(fType.getFloatSemantics())) {
+        // maybe add an option for saturating conversion in the future?
+        op->emitOpError()
+            << "Target float type too small to represent real value";
+        return failure();
+      }
+
+      auto buildIntAttr = [targetWidth](Builder b,
+                                        int64_t value) -> IntegerAttr {
+        return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
+      };
+
+      Value conv;
+      if (dtInfo.getSignd()) {
+        conv = b.create<arith::SIToFPOp>(fType, adaptor.getFrom()).getResult();
+      } else {
+        conv = b.create<arith::UIToFPOp>(fType, adaptor.getFrom()).getResult();
+      }
+
+      // first we extract the exponent
+
+      arith::BitcastOp bitcast =
+          b.create<arith::BitcastOp>(b.getIntegerType(targetWidth), conv);
+
+      // inverse of sign mask (0b01111...1)
+      IntegerAttr inv_sign_mask =
+          buildIntAttr(b, ((uint64_t)1 << (targetWidth - 1)) - 1);
+      arith::ConstantOp inv_sign_mask_const =
+          b.create<arith::ConstantOp>(inv_sign_mask);
+      // zero out sign bit
+      arith::AndIOp signless =
+          b.create<arith::AndIOp>(bitcast, inv_sign_mask_const);
+
+      // shift mantissa out
+      IntegerAttr shift_amount =
+          buildIntAttr(b, targetWidth - (fType.getFPMantissaWidth() + 1));
+      arith::ConstantOp shift_amount_const =
+          b.create<arith::ConstantOp>(shift_amount);
+      arith::ShRUIOp expBits =
+          b.create<arith::ShRUIOp>(signless, shift_amount_const);
+
+      // exponent bias (for f32, this is 2^(8 - 1) - 1 = 127)
+      IntegerAttr bias = buildIntAttr(
+          b, ((uint64_t)1 << (fType.getFPMantissaWidth() - 1)) - 1);
+      arith::ConstantOp bias_const = b.create<arith::ConstantOp>(bias);
+      // debias exponent
+      arith::SubIOp debiasedExp = b.create<arith::SubIOp>(expBits, bias_const);
+
+      // compute actual exponent
+      IntegerAttr dtExp = buildIntAttr(b, dtInfo.getExponent());
+      arith::ConstantOp dtExp_const = b.create<arith::ConstantOp>(dtExp);
+      arith::AddIOp actual_exp = b.create<arith::AddIOp>(dtExp_const, debiasedExp);
+
+      // add bias
+      arith::AddIOp biased_actual_exp =
+          b.create<arith::AddIOp>(actual_exp, bias_const);
+
+      // shift into correct bits
+      IntegerAttr n_mantissa_bits = buildIntAttr(b, fType.getFPMantissaWidth());
+      arith::ConstantOp n_mantissa_bits_const =
+          b.create<arith::ConstantOp>(n_mantissa_bits);
+      arith::ShLIOp final_exp =
+          b.create<arith::ShLIOp>(biased_actual_exp, n_mantissa_bits_const);
+
+      // zero out exponent original
+      uint64_t exponent_mask =
+          // 0b1000...0
+          ((uint64_t)1 << (targetWidth - 1)) +
+          // 0b((0)^exp_size+1) 1111...1
+          ((uint64_t)-1 >> (fType.getFPMantissaWidth() + 1));
+      arith::ConstantOp exp_mask_const =
+          b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
+      arith::AndIOp no_exp = b.create<arith::AndIOp>(bitcast, exp_mask_const);
+
+      // set exponent
+      arith::OrIOp final_value = b.create<arith::OrIOp>(no_exp, final_exp);
+
+      // bitcast back
+      arith::BitcastOp bitcast_back =
+          b.create<arith::BitcastOp>(fType, final_value);
+
+      rewriter.replaceOp(op, bitcast_back);
+      return success();
+    }
+  };
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     mlir::Operation *module = getOperation();
 
     ConversionTarget target(*context);
     target.markUnknownOpDynamicallyLegal([](Operation *op) { return true; });
-    target.addIllegalOp<AddOp, CastToRealOp>();
-    // target.addIllegalDialect<TaffoDialect>();
+    target.addIllegalOp<AddOp, CastToRealOp, CastToFloatOp>();
+    target.addIllegalDialect<TaffoDialect>();
 
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context, 32);
-    patterns.add<ConvertAdd, ConvertCastToReal>(typeConverter, context);
+    patterns.add<ConvertAdd, ConvertCastToReal, ConvertCastToFloat>(
+        typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();

@@ -41,8 +41,7 @@ def LowerToArithPass
 
     let dependentDialects = [
         "mlir::taffo::TaffoDialect",
-        "mlir::arith::ArithDialect",
-        "mlir::scf::SCFDialect"
+        "mlir::arith::ArithDialect"
     ];
 
 }
