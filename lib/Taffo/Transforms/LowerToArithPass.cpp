@@ -164,6 +164,13 @@ public:
         return b.getIntegerAttr(b.getIntegerType(dtInfo.getBitwidth()), value);
       };
 
+      // imagine a world where you are a programmer who decides the method
+      // "getFPMantissaWidth" returns the width of the mantissa field + 1
+      // because it accounts for the implicit bit for some godforsaken reason
+      int mantissaBitwidth = fType.getFPMantissaWidth() - 1;
+
+      int floatExpBitwidth = ogWidth - mantissaBitwidth - 1;
+
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(ogWidth), op.getFrom());
 
@@ -172,15 +179,16 @@ public:
           // 0b1000...0
           ((uint64_t)1 << (ogWidth - 1)) +
           // 0b((0)^exp_size+1) 1111...1
-          ((uint64_t)-1 >> (fType.getFPMantissaWidth() + 1));
+          ((uint64_t)1 << (mantissaBitwidth)) - 1;
       arith::ConstantOp exp_mask_const =
           b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
       arith::AndIOp no_exp = b.create<arith::AndIOp>(bitcast, exp_mask_const);
 
       // set exponent (for f32, we set to 30 such that we have room for the sign
       // bit)
-      uint64_t new_exp = ((uint64_t)(dtInfo.getBitwidth() - 2))
-                         << (ogWidth - fType.getFPMantissaWidth() - 1);
+      uint64_t bias = ((uint64_t)1 << (floatExpBitwidth - 1)) - 1;
+      uint64_t new_exp = ((uint64_t)(bias + dtInfo.getBitwidth() - 2))
+                         << (mantissaBitwidth);
       arith::ConstantOp new_exp_const =
           b.create<arith::ConstantOp>(buildIntAttr(b, new_exp));
       arith::OrIOp normalized = b.create<arith::OrIOp>(no_exp, new_exp_const);
@@ -201,17 +209,21 @@ public:
           b.create<arith::AndIOp>(bitcast, inv_sign_mask_const);
 
       // shift mantissa out
-      IntegerAttr shift_amount =
-          buildIntAttr(b, ogWidth - (fType.getFPMantissaWidth() + 1));
+      IntegerAttr shift_amount = buildIntAttr(b, mantissaBitwidth);
       arith::ConstantOp shift_amount_const =
           b.create<arith::ConstantOp>(shift_amount);
       arith::ShRUIOp expBits =
           b.create<arith::ShRUIOp>(signless, shift_amount_const);
 
-      IntegerAttr fixp_exp = buildIntAttr(b, dtInfo.getExponent());
+      // TODO: final_shift_amount is not quite right. It's not just the
+      //  difference between exponents, the bitwidth is somehow related to it
+
+      // account for bias here to save one instruction
+      IntegerAttr fixp_exp = buildIntAttr(b, dtInfo.getExponent() + bias);
       arith::ConstantOp fixp_exp_const = b.create<arith::ConstantOp>(fixp_exp);
       arith::SubIOp final_shift_amount =
-          b.create<arith::SubIOp>(fixp_exp_const, expBits);
+          // these operands really should not be flipped, I don't get it
+          b.create<arith::SubIOp>(expBits, fixp_exp_const);
 
       int smallestExp =
           llvm::APFloat::semanticsMinExponent(fType.getFloatSemantics());
@@ -297,7 +309,7 @@ public:
       }
 
       if (dtInfo.getExponent() >
-              llvm::APFloat::semanticsMaxExponent(fType.getFloatSemantics())) {
+          llvm::APFloat::semanticsMaxExponent(fType.getFloatSemantics())) {
         // maybe add an option for saturating conversion in the future?
         op->emitOpError()
             << "Target float type too small to represent real value";
@@ -308,6 +320,11 @@ public:
                                         int64_t value) -> IntegerAttr {
         return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
       };
+
+      // imagine a world where you are a programmer who decides the method
+      // "getFPMantissaWidth" returns the width of the mantissa field + 1
+      // because it accounts for the implicit bit for some godforsaken reason
+      int mantissaBitwidth = fType.getFPMantissaWidth() - 1;
 
       Value conv;
       if (dtInfo.getSignd()) {
@@ -332,15 +349,15 @@ public:
 
       // shift mantissa out
       IntegerAttr shift_amount =
-          buildIntAttr(b, targetWidth - (fType.getFPMantissaWidth() + 1));
+          buildIntAttr(b, targetWidth - (mantissaBitwidth + 1));
       arith::ConstantOp shift_amount_const =
           b.create<arith::ConstantOp>(shift_amount);
       arith::ShRUIOp expBits =
           b.create<arith::ShRUIOp>(signless, shift_amount_const);
 
       // exponent bias (for f32, this is 2^(8 - 1) - 1 = 127)
-      IntegerAttr bias = buildIntAttr(
-          b, ((uint64_t)1 << (fType.getFPMantissaWidth() - 1)) - 1);
+      IntegerAttr bias =
+          buildIntAttr(b, ((uint64_t)1 << (mantissaBitwidth - 1)) - 1);
       arith::ConstantOp bias_const = b.create<arith::ConstantOp>(bias);
       // debias exponent
       arith::SubIOp debiasedExp = b.create<arith::SubIOp>(expBits, bias_const);
@@ -348,14 +365,15 @@ public:
       // compute actual exponent
       IntegerAttr dtExp = buildIntAttr(b, dtInfo.getExponent());
       arith::ConstantOp dtExp_const = b.create<arith::ConstantOp>(dtExp);
-      arith::AddIOp actual_exp = b.create<arith::AddIOp>(dtExp_const, debiasedExp);
+      arith::AddIOp actual_exp =
+          b.create<arith::AddIOp>(dtExp_const, debiasedExp);
 
       // add bias
       arith::AddIOp biased_actual_exp =
           b.create<arith::AddIOp>(actual_exp, bias_const);
 
       // shift into correct bits
-      IntegerAttr n_mantissa_bits = buildIntAttr(b, fType.getFPMantissaWidth());
+      IntegerAttr n_mantissa_bits = buildIntAttr(b, mantissaBitwidth);
       arith::ConstantOp n_mantissa_bits_const =
           b.create<arith::ConstantOp>(n_mantissa_bits);
       arith::ShLIOp final_exp =
@@ -366,7 +384,7 @@ public:
           // 0b1000...0
           ((uint64_t)1 << (targetWidth - 1)) +
           // 0b((0)^exp_size+1) 1111...1
-          ((uint64_t)-1 >> (fType.getFPMantissaWidth() + 1));
+          ((uint64_t)-1 >> (mantissaBitwidth + 1));
       arith::ConstantOp exp_mask_const =
           b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
       arith::AndIOp no_exp = b.create<arith::AndIOp>(bitcast, exp_mask_const);
