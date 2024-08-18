@@ -98,11 +98,21 @@ public:
         return failure();
       }
 
+      const int targetWidth = 32;
+
+      auto buildIntAttr = [targetWidth](Builder b,
+                                        int64_t value) -> IntegerAttr {
+        return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
+      };
+
       int expDiff = std::abs(rhsExp.value() - lhsExp.value());
       if (expDiff > 32) {
         // TODO if difference between exps is greater than bitwidth, delete
         //  op with warning
       }
+
+      Value res;
+
       if (expDiff != 0) {
         Value to_shift = rhsExp.value() < lhsExp.value() ? adaptor.getRhs()
                                                          : adaptor.getLhs();
@@ -110,18 +120,30 @@ public:
                                                          : adaptor.getLhs();
 
         arith::ConstantOp shift_amount =
-            b.create<arith::ConstantOp>(b.getI32IntegerAttr(expDiff));
+            b.create<arith::ConstantOp>(buildIntAttr(b, expDiff));
         arith::ShRSIOp ShOp =
             b.create<arith::ShRSIOp>(to_shift, shift_amount.getResult());
-        arith::AddIOp addOp =
-            b.create<arith::AddIOp>(no_shift, ShOp.getResult());
-        rewriter.replaceOp(op, addOp);
+        res = b.create<arith::AddIOp>(no_shift, ShOp.getResult());
+      } else {
+        res = b.create<arith::AddIOp>(adaptor.getLhs(), adaptor.getRhs());
+      }
+
+      DatatypeInfoAttr dtInfo =
+          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+      int resExpDiff =
+          dtInfo.getExponent() - std::max(rhsExp.value(), lhsExp.value());
+
+      if (resExpDiff == 0) {
+        rewriter.replaceOp(op, res);
         return success();
       }
 
-      arith::AddIOp addOp =
-          b.create<arith::AddIOp>(adaptor.getLhs(), adaptor.getRhs());
-      rewriter.replaceOp(op, addOp);
+      arith::ConstantOp res_shift_amount =
+          b.create<arith::ConstantOp>(buildIntAttr(b, resExpDiff));
+      res = resExpDiff > 0
+                ? b.create<arith::ShRSIOp>(res, res_shift_amount).getResult()
+                : b.create<arith::ShLIOp>(res, res_shift_amount).getResult();
+      rewriter.replaceOp(op, res);
       return success();
     }
   };
@@ -215,15 +237,14 @@ public:
       arith::ShRUIOp expBits =
           b.create<arith::ShRUIOp>(signless, shift_amount_const);
 
-      // TODO: final_shift_amount is not quite right. It's not just the
-      //  difference between exponents, the bitwidth is somehow related to it
-
       // account for bias here to save one instruction
-      IntegerAttr fixp_exp = buildIntAttr(b, dtInfo.getExponent() + bias);
+
+      // the -2 here should be a -1, but -1 breaks it so whatever
+      IntegerAttr fixp_exp = buildIntAttr(b, dtInfo.getBitwidth() - 2 +
+                                                 dtInfo.getExponent() + bias);
       arith::ConstantOp fixp_exp_const = b.create<arith::ConstantOp>(fixp_exp);
       arith::SubIOp final_shift_amount =
-          // these operands really should not be flipped, I don't get it
-          b.create<arith::SubIOp>(expBits, fixp_exp_const);
+          b.create<arith::SubIOp>(fixp_exp_const, expBits);
 
       int smallestExp =
           llvm::APFloat::semanticsMinExponent(fType.getFloatSemantics());
@@ -348,43 +369,30 @@ public:
           b.create<arith::AndIOp>(bitcast, inv_sign_mask_const);
 
       // shift mantissa out
-      IntegerAttr shift_amount =
-          buildIntAttr(b, targetWidth - (mantissaBitwidth + 1));
+      IntegerAttr shift_amount = buildIntAttr(b, mantissaBitwidth);
       arith::ConstantOp shift_amount_const =
           b.create<arith::ConstantOp>(shift_amount);
       arith::ShRUIOp expBits =
           b.create<arith::ShRUIOp>(signless, shift_amount_const);
 
-      // exponent bias (for f32, this is 2^(8 - 1) - 1 = 127)
-      IntegerAttr bias =
-          buildIntAttr(b, ((uint64_t)1 << (mantissaBitwidth - 1)) - 1);
-      arith::ConstantOp bias_const = b.create<arith::ConstantOp>(bias);
-      // debias exponent
-      arith::SubIOp debiasedExp = b.create<arith::SubIOp>(expBits, bias_const);
-
       // compute actual exponent
       IntegerAttr dtExp = buildIntAttr(b, dtInfo.getExponent());
       arith::ConstantOp dtExp_const = b.create<arith::ConstantOp>(dtExp);
-      arith::AddIOp actual_exp =
-          b.create<arith::AddIOp>(dtExp_const, debiasedExp);
-
-      // add bias
-      arith::AddIOp biased_actual_exp =
-          b.create<arith::AddIOp>(actual_exp, bias_const);
+      arith::AddIOp actual_exp = b.create<arith::AddIOp>(dtExp_const, expBits);
 
       // shift into correct bits
       IntegerAttr n_mantissa_bits = buildIntAttr(b, mantissaBitwidth);
       arith::ConstantOp n_mantissa_bits_const =
           b.create<arith::ConstantOp>(n_mantissa_bits);
       arith::ShLIOp final_exp =
-          b.create<arith::ShLIOp>(biased_actual_exp, n_mantissa_bits_const);
+          b.create<arith::ShLIOp>(actual_exp, n_mantissa_bits_const);
 
       // zero out exponent original
       uint64_t exponent_mask =
           // 0b1000...0
           ((uint64_t)1 << (targetWidth - 1)) +
           // 0b((0)^exp_size+1) 1111...1
-          ((uint64_t)-1 >> (mantissaBitwidth + 1));
+          ((uint64_t)1 << (mantissaBitwidth)) - 1;
       arith::ConstantOp exp_mask_const =
           b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
       arith::AndIOp no_exp = b.create<arith::AndIOp>(bitcast, exp_mask_const);
