@@ -64,6 +64,25 @@ public:
     }
   };
 
+  // TODO handle function arguments
+  std::optional<int> getExp(Value v) {
+    mlir::Operation *op = v.getDefiningOp();
+    if (op == nullptr)
+      return std::nullopt;
+    Attribute attr = op->getAttr("DatatypeInfo");
+    DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
+    return dt ? std::optional<int>{dt.getExponent()} : std::nullopt;
+  }
+
+  std::optional<bool> getSignd(Value v) {
+    mlir::Operation *op = v.getDefiningOp();
+    if (op == nullptr)
+      return std::nullopt;
+    Attribute attr = op->getAttr("DatatypeInfo");
+    DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
+    return dt ? std::optional<bool>{dt.getSignd()} : std::nullopt;
+  }
+
   struct ConvertAdd : public OpConversionPattern<AddOp> {
     ConvertAdd(mlir::MLIRContext *context)
         : OpConversionPattern<AddOp>(context) {}
@@ -77,16 +96,6 @@ public:
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      // TODO handle function arguments
-      auto getExp = [](Value v) -> std::optional<int> {
-        mlir::Operation *op = v.getDefiningOp();
-        if (op == nullptr)
-          return std::nullopt;
-        Attribute attr = op->getAttr("DatatypeInfo");
-        DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
-        return dt ? std::optional<int>{dt.getExponent()} : std::nullopt;
-      };
-
       std::optional<int> rhsExp = getExp(op.getRhs());
       if (!rhsExp) {
         op->emitOpError() << "DatatypeInfo has not been set for rhs";
@@ -96,6 +105,13 @@ public:
       if (!lhsExp) {
         op->emitOpError() << "DatatypeInfo has not been set for lhs";
         return failure();
+      }
+
+      if (getSignd(op.getRhs()) && getSignd(op.getLhs())) {
+        if (getSignd(op.getRhs()) != getSignd(op.getLhs())) {
+          op->emitOpError() << "Operands have different signedness";
+          return failure();
+        }
       }
 
       const int targetWidth = 32;
@@ -181,6 +197,13 @@ public:
       if (!lhsExp) {
         op->emitOpError() << "DatatypeInfo has not been set for lhs";
         return failure();
+      }
+
+      if (getSignd(op.getRhs()) && getSignd(op.getLhs())) {
+        if (getSignd(op.getRhs()) != getSignd(op.getLhs())) {
+          op->emitOpError() << "Operands have different signedness";
+          return failure();
+        }
       }
 
       DatatypeInfoAttr dtInfo =
