@@ -44,7 +44,7 @@ def Taffo_DatatypeInfoAttr
         "bool":$signd,
         "int":$exponent,
         "int":$bitwidth,
-        "std::optional<int>":$expDiff);
+        "std::optional<int>":$expSpan);
 
     let assemblyFormat = "`<` struct(params) `>`";
     //let assemblyFormat = "`<` $signd `,` $exponent `,` $bitwidth `>`";

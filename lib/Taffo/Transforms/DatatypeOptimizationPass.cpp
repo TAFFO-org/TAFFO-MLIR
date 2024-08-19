@@ -43,8 +43,8 @@ public:
 
       // unsure about this
       std::optional<int> newExpDiff =
-          dtInfo.getExpDiff() ? std::optional<int>(std::abs(
-                                    dtInfo.getExpDiff().value() - bitwidthDiff))
+          dtInfo.getExpSpan() ? std::optional<int>(std::abs(
+                                    dtInfo.getExpSpan().value() - bitwidthDiff))
                               : std::nullopt;
 
       op->setAttr("DatatypeInfo",

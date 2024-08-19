@@ -50,6 +50,9 @@ public:
       NtvRange range = opRange->getValue().getValue();
       bool signd = range.first.isNegative() || range.second.isNegative();
 
+      // Hardcoding because unsigned lowering is not yet completely functional
+      signd = true;
+
       // Hardcoding for f32, in the future it will need to work off of either
       // precision, number of significant digits, or a global parameter
       // const int maxBitwidth = 32;
@@ -81,7 +84,7 @@ public:
           (range.first.convertToDouble() * range.second.convertToDouble()) <= 0;
       // if the range contains zero, the smallest exponent depends on the
       // original (float) datatype, which we don't know at this stage
-      std::optional<int> exp_diff = rangeContainsZero
+      std::optional<int> exp_span = rangeContainsZero
                                         ? std::nullopt
                                         : std::optional<int>(std::abs(lf - ls));
 
@@ -91,7 +94,7 @@ public:
       int exponent = max_exp - (bitwidth - 1);
       op->setAttr("DatatypeInfo",
                   DatatypeInfoAttr::get(op->getContext(), signd, exponent,
-                                        bitwidth, exp_diff));
+                                        bitwidth, exp_span));
 
       return mlir::WalkResult::advance();
     });

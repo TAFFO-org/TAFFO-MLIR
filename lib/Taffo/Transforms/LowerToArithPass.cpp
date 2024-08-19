@@ -138,15 +138,83 @@ public:
         return success();
       }
 
-      arith::ConstantOp res_shift_amount =
-          b.create<arith::ConstantOp>(buildIntAttr(b, resExpDiff));
+      arith::ConstantOp align_res =
+          b.create<arith::ConstantOp>(buildIntAttr(b, std::abs(resExpDiff)));
       res = resExpDiff > 0
-                ? b.create<arith::ShRSIOp>(res, res_shift_amount).getResult()
-                : b.create<arith::ShLIOp>(res, res_shift_amount).getResult();
+                ? dtInfo.getSignd()
+                      ? b.create<arith::ShRSIOp>(res, align_res).getResult()
+                      : b.create<arith::ShRUIOp>(res, align_res).getResult()
+                : b.create<arith::ShLIOp>(res, align_res).getResult();
       rewriter.replaceOp(op, res);
       return success();
     }
   };
+
+  struct ConvertMult : public OpConversionPattern<MultOp> {
+    ConvertMult(mlir::MLIRContext *context)
+        : OpConversionPattern<MultOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(MultOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+      // TODO handle function arguments
+      auto getExp = [](Value v) -> std::optional<int> {
+        mlir::Operation *op = v.getDefiningOp();
+        if (op == nullptr)
+          return std::nullopt;
+        Attribute attr = op->getAttr("DatatypeInfo");
+        DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
+        return dt ? std::optional<int>{dt.getExponent()} : std::nullopt;
+      };
+
+      std::optional<int> rhsExp = getExp(op.getRhs());
+      if (!rhsExp) {
+        op->emitOpError() << "DatatypeInfo has not been set for rhs";
+        return failure();
+      }
+      std::optional<int> lhsExp = getExp(op.getLhs());
+      if (!lhsExp) {
+        op->emitOpError() << "DatatypeInfo has not been set for lhs";
+        return failure();
+      }
+
+      DatatypeInfoAttr dtInfo =
+          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+
+      int implicitExp = rhsExp.value() + lhsExp.value() + dtInfo.getBitwidth();
+      int expDiff = dtInfo.getExponent() - implicitExp;
+
+      Value res = dtInfo.getSignd()
+                      ? b.create<arith::MulSIExtendedOp>(adaptor.getLhs(),
+                                                         adaptor.getRhs())
+                            .getHigh()
+                      : b.create<arith::MulUIExtendedOp>(adaptor.getLhs(),
+                                                         adaptor.getRhs())
+                            .getHigh();
+
+      if (expDiff == 0) {
+        rewriter.replaceOp(op, res);
+        return success();
+      }
+
+      arith::ConstantOp align_res =
+          b.create<arith::ConstantOp>(b.getIntegerAttr(
+              b.getIntegerType(dtInfo.getBitwidth()), std::abs(expDiff)));
+      res = expDiff > 0
+                ? dtInfo.getSignd()
+                      ? b.create<arith::ShRSIOp>(res, align_res).getResult()
+                      : b.create<arith::ShRUIOp>(res, align_res).getResult()
+                : b.create<arith::ShLIOp>(res, align_res).getResult();
+      rewriter.replaceOp(op, res);
+      return success();
+    }
+  };
+
   struct ConvertCastToReal : public OpConversionPattern<CastToRealOp> {
     ConvertCastToReal(mlir::MLIRContext *context)
         : OpConversionPattern<CastToRealOp>(context) {}
@@ -249,14 +317,14 @@ public:
       int smallestExp =
           llvm::APFloat::semanticsMinExponent(fType.getFloatSemantics());
 
-      int expDiff = dtInfo.getExpDiff()
-                        ? dtInfo.getExpDiff().value()
+      int expSpan = dtInfo.getExpSpan()
+                        ? dtInfo.getExpSpan().value()
                         : std::abs(dtInfo.getExponent() - smallestExp);
 
       // if the following is true condition is true, we might shift by a
       // number larger than the bitwidth, which will produce poison, so we
       // need to check and return zero if that is the case
-      if (expDiff >= dtInfo.getBitwidth()) {
+      if (expSpan >= dtInfo.getBitwidth()) {
         arith::ConstantOp dtBitwidth_const =
             b.create<arith::ConstantOp>(buildIntAttr(b, dtInfo.getBitwidth()));
         arith::CmpIOp oob_shift = b.create<arith::CmpIOp>(
@@ -415,12 +483,11 @@ public:
 
     ConversionTarget target(*context);
     target.markUnknownOpDynamicallyLegal([](Operation *op) { return true; });
-    target.addIllegalOp<AddOp, CastToRealOp, CastToFloatOp>();
     target.addIllegalDialect<TaffoDialect>();
 
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context, 32);
-    patterns.add<ConvertAdd, ConvertCastToReal, ConvertCastToFloat>(
+    patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat>(
         typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
