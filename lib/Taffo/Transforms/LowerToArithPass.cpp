@@ -274,11 +274,12 @@ public:
           b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
       arith::AndIOp no_exp = b.create<arith::AndIOp>(bitcast, exp_mask_const);
 
-      // set exponent (for f32, we set to 30 such that we have room for the sign
-      // bit)
+      // set exponent (for f32, if signed we set to 30 such that we have room
+      // for the sign bit, if unsigned we set to 31)
       uint64_t bias = ((uint64_t)1 << (floatExpBitwidth - 1)) - 1;
-      uint64_t new_exp = ((uint64_t)(bias + dtInfo.getBitwidth() - 2))
-                         << (mantissaBitwidth);
+      uint64_t new_exp =
+          ((uint64_t)(bias + dtInfo.getBitwidth() - 1 - dtInfo.getSignd()))
+          << (mantissaBitwidth);
       arith::ConstantOp new_exp_const =
           b.create<arith::ConstantOp>(buildIntAttr(b, new_exp));
       arith::OrIOp normalized = b.create<arith::OrIOp>(no_exp, new_exp_const);
@@ -286,17 +287,26 @@ public:
       arith::BitcastOp bitcast_back =
           b.create<arith::BitcastOp>(fType, normalized);
 
-      arith::FPToSIOp conv = b.create<arith::FPToSIOp>(
-          b.getIntegerType(dtInfo.getBitwidth()), bitcast_back);
+      Value conv =
+          dtInfo.getSignd()
+              ? b.create<arith::FPToSIOp>(
+                     b.getIntegerType(dtInfo.getBitwidth()), bitcast_back)
+                    .getResult()
+              : b.create<arith::FPToUIOp>(
+                     b.getIntegerType(dtInfo.getBitwidth()), bitcast_back)
+                    .getResult();
 
-      // inverse of sign mask (0b01111...1)
-      IntegerAttr inv_sign_mask =
-          buildIntAttr(b, ((uint64_t)1 << (ogWidth - 1)) - 1);
-      arith::ConstantOp inv_sign_mask_const =
-          b.create<arith::ConstantOp>(inv_sign_mask);
-      // zero out sign bit
-      arith::AndIOp signless =
-          b.create<arith::AndIOp>(bitcast, inv_sign_mask_const);
+      Value signless = bitcast;
+
+      if (dtInfo.getSignd()) {
+        // inverse of sign mask (0b01111...1)
+        IntegerAttr inv_sign_mask =
+            buildIntAttr(b, ((uint64_t)1 << (ogWidth - 1)) - 1);
+        arith::ConstantOp inv_sign_mask_const =
+            b.create<arith::ConstantOp>(inv_sign_mask);
+        // zero out sign bit
+        signless = b.create<arith::AndIOp>(bitcast, inv_sign_mask_const);
+      }
 
       // shift mantissa out
       IntegerAttr shift_amount = buildIntAttr(b, mantissaBitwidth);
@@ -307,9 +317,9 @@ public:
 
       // account for bias here to save one instruction
 
-      // the -2 here should be a -1, but -1 breaks it so whatever
-      IntegerAttr fixp_exp = buildIntAttr(b, dtInfo.getBitwidth() - 2 +
-                                                 dtInfo.getExponent() + bias);
+      IntegerAttr fixp_exp =
+          buildIntAttr(b, dtInfo.getBitwidth() - 1 - dtInfo.getSignd() +
+                              dtInfo.getExponent() + bias);
       arith::ConstantOp fixp_exp_const = b.create<arith::ConstantOp>(fixp_exp);
       arith::SubIOp final_shift_amount =
           b.create<arith::SubIOp>(fixp_exp_const, expBits);
@@ -340,7 +350,9 @@ public:
                           .getResult();
         }
 
-        arith::ShRSIOp res = b.create<arith::ShRSIOp>(conv.getResult(), fsa);
+        Value res = dtInfo.getSignd()
+                        ? b.create<arith::ShRSIOp>(conv, fsa).getResult()
+                        : b.create<arith::ShRUIOp>(conv, fsa).getResult();
 
         arith::ConstantOp zero_const =
             b.create<arith::ConstantOp>(buildDestIntAttr(b, 0));
@@ -360,7 +372,9 @@ public:
                   : b.create<arith::ExtUIOp>(b.getIntegerType(ogWidth), fsa)
                         .getResult();
       }
-      arith::ShRSIOp res = b.create<arith::ShRSIOp>(conv, fsa);
+      Value res = dtInfo.getSignd()
+                      ? b.create<arith::ShRSIOp>(conv, fsa).getResult()
+                      : b.create<arith::ShRUIOp>(conv, fsa).getResult();
       rewriter.replaceOp(op, res);
       return success();
     }
@@ -487,8 +501,9 @@ public:
 
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context, 32);
-    patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat>(
-        typeConverter, context);
+    patterns
+        .add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat>(
+            typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();
