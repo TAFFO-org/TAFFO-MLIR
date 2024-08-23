@@ -14,7 +14,7 @@ template <typename T>
 T inferCast(llvm::ArrayRef<T> argRanges);
 
 template <typename T>
-T inferConvert(llvm::ArrayRef<T> argRanges);
+T inferCastToFloat(llvm::ArrayRef<T> argRanges);
 
 template <typename T>
 T inferAdd(llvm::ArrayRef<T> argRanges);

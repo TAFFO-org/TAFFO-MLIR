@@ -7,26 +7,26 @@ namespace mlir::taffo {
 template <>
 // unused (for now?)
 NtvRange inferCast(ArrayRef<NtvRange> argRanges) {
-  assert(argRanges[0].first <= argRanges[0].second &&
-         "Upperbound and lowerbound of this range are inverted");
+  assert(argRanges[0].first < argRanges[0].second &&
+         "Upper bound and lower bound of this range are inverted");
 
   return argRanges[0];
 }
 
 template <>
-NtvRange inferConvert(ArrayRef<NtvRange> argRanges) {
-  assert(argRanges[0].first <= argRanges[0].second &&
-         "Upperbound and lowerbound of this range are inverted");
+NtvRange inferCastToFloat(ArrayRef<NtvRange> argRanges) {
+  assert(argRanges[0].first < argRanges[0].second &&
+         "Upper bound and lower bound of this range are inverted");
 
   return argRanges[0];
 }
 
 template <>
 NtvRange inferAdd(ArrayRef<NtvRange> argRanges) {
-  assert(argRanges[0].first <= argRanges[0].second &&
-         "Upperbound and lowerbound of this range are inverted");
-  assert(argRanges[1].first <= argRanges[1].second  &&
-         "Upperbound and lowerbound of this range are inverted");
+  assert(argRanges[0].first < argRanges[0].second &&
+         "Upper bound and lower bound of this range are inverted");
+  assert(argRanges[1].first < argRanges[1].second  &&
+         "Upper bound and lower bound of this range are inverted");
 
   APFloat min = argRanges[0].first + argRanges[1].first;
   APFloat max = argRanges[0].second + argRanges[1].second;
@@ -36,10 +36,10 @@ NtvRange inferAdd(ArrayRef<NtvRange> argRanges) {
 
 template <>
 NtvRange inferMult(ArrayRef<NtvRange> argRanges) {
-  assert(argRanges[0].first <= argRanges[0].second &&
-         "Upperbound and lowerbound of this range are inverted");
-  assert(argRanges[1].first <= argRanges[1].second  &&
-         "Upperbound and lowerbound of this range are inverted");
+  assert(argRanges[0].first < argRanges[0].second &&
+         "Upper bound and lower bound of this range are inverted");
+  assert(argRanges[1].first < argRanges[1].second  &&
+         "Upper bound and lower bound of this range are inverted");
 
   // unrolled outer product
   APFloat a0b0 = argRanges[0].first * argRanges[1].first;

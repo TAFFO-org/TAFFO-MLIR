@@ -36,7 +36,7 @@ namespace mlir::taffo
       llvm::ArrayRef<NtvRange> argRanges,
       mlir::taffo::SetTaffoRangeFn setResultRange)
   {
-    setResultRange(getResult(), inferConvert(argRanges));
+    setResultRange(getResult(), inferCastToFloat(argRanges));
   }
 
   void AddOp::inferTaffoRanges(

@@ -50,9 +50,6 @@ public:
       NtvRange range = opRange->getValue().getValue();
       bool signd = range.first.isNegative() || range.second.isNegative();
 
-      // Hardcoding because unsigned lowering is not yet completely functional
-      //signd = true;
-
       // Hardcoding for f32, in the future it will need to work off of either
       // precision, number of significant digits, or a global parameter
       // const int maxBitwidth = 32;
