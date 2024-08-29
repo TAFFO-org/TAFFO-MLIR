@@ -65,7 +65,7 @@ public:
   };
 
   // TODO handle function arguments
-  std::optional<int> getExp(Value v) {
+  static std::optional<int> getExp(Value v) {
     mlir::Operation *op = v.getDefiningOp();
     if (op == nullptr)
       return std::nullopt;
@@ -74,7 +74,7 @@ public:
     return dt ? std::optional<int>{dt.getExponent()} : std::nullopt;
   }
 
-  std::optional<bool> getSignd(Value v) {
+  static std::optional<bool> getSignd(Value v) {
     mlir::Operation *op = v.getDefiningOp();
     if (op == nullptr)
       return std::nullopt;
