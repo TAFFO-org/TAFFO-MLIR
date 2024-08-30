@@ -48,6 +48,24 @@ def Taffo_DatatypeInfoAttr
 
     let assemblyFormat = "`<` struct(params) `>`";
     //let assemblyFormat = "`<` $signd `,` $exponent `,` $bitwidth `>`";
+
+    let extraClassDeclaration = [{
+        bool operator==(DatatypeInfoAttr other) const {
+
+            bool expSpansNull = (!getExpSpan() && !other.getExpSpan());
+
+            bool expSpansNotNull =
+                (getExpSpan() && other.getExpSpan())
+                    ? getExpSpan().value() == other.getExpSpan().value()
+                    : false;
+
+            return
+                getSignd() == other.getSignd()
+                && getExponent() == other.getExponent()
+                && getBitwidth() == other.getBitwidth()
+                && (expSpansNull || expSpansNotNull);
+        }
+    }];
 }
 
 #endif // TAFFO_DIALECT_TAFFOATTRIBUTES_TD
