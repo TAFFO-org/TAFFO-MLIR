@@ -122,9 +122,14 @@ public:
       };
 
       int expDiff = std::abs(rhsExp.value() - lhsExp.value());
-      if (expDiff > 32) {
-        // TODO if difference between exps is greater than bitwidth, delete
-        //  op with warning
+      // if the difference in exponent is large enough that largest number of
+      // the smaller operand cannot be represented by the larger operand, delete
+      // the op
+      if (expDiff > targetWidth) {
+        Value maxExpArg = rhsExp.value() > lhsExp.value() ? adaptor.getRhs()
+                                                          : adaptor.getLhs();
+        rewriter.replaceOp(op, maxExpArg);
+        return success();
       }
 
       Value res;
@@ -452,12 +457,12 @@ public:
       // because it accounts for the implicit bit for some godforsaken reason
       int mantissaBitwidth = fType.getFPMantissaWidth() - 1;
 
-      Value conv;
-      if (dtInfo.getSignd()) {
-        conv = b.create<arith::SIToFPOp>(fType, adaptor.getFrom()).getResult();
-      } else {
-        conv = b.create<arith::UIToFPOp>(fType, adaptor.getFrom()).getResult();
-      }
+      Value conv =
+          (dtInfo.getSignd())
+              ? conv = b.create<arith::SIToFPOp>(fType, adaptor.getFrom())
+                           .getResult()
+              : conv = b.create<arith::UIToFPOp>(fType, adaptor.getFrom())
+                           .getResult();
 
       // first we extract the exponent
 
