@@ -97,7 +97,11 @@ public:
 
         // propagate change to users
         for (Operation *childOp : op->getUsers()) {
-          if(!llvm::isa<TaffoDialect>(childOp->getDialect()))
+          // currently CastToFloat this is the only op that relies on same
+          // datatype because it doesn't fetch it from its operand's defining
+          // op. This may be bad design, but it saves shifts down the line
+          // (and can also be easily changed if the need arises in the future)
+          if (!llvm::isa<taffo::CastToFloatOp>(childOp))
             continue;
 
           DatatypeInfoAttr childDt =
@@ -110,11 +114,10 @@ public:
                   ? oldDt.getExpSpan().value() == childDt.getExpSpan().value()
                   : false;
 
-          bool equal =
-              oldDt.getSignd() == childDt.getSignd()
-              && oldDt.getExponent() == childDt.getExponent()
-              && oldDt.getBitwidth() == childDt.getBitwidth()
-              && (expSpansNull || expSpansNotNull);
+          bool equal = oldDt.getSignd() == childDt.getSignd() &&
+                       oldDt.getExponent() == childDt.getExponent() &&
+                       oldDt.getBitwidth() == childDt.getBitwidth() &&
+                       (expSpansNull || expSpansNotNull);
 
           if (equal)
             childOp->setAttr("DatatypeInfo", newDt);

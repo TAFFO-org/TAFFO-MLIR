@@ -89,7 +89,6 @@ public:
 
     using OpConversionPattern::OpConversionPattern;
 
-    // TODO overflow check (maybe in an intermediate pass on dtInfo?)
     LogicalResult
     matchAndRewrite(AddOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
@@ -359,7 +358,7 @@ public:
                         ? dtInfo.getExpSpan().value()
                         : std::abs(dtInfo.getExponent() - smallestExp);
 
-      // if the following is true condition is true, we might shift by a
+      // if the following condition is true, we might shift by a
       // number larger than the bitwidth, which will produce poison, so we
       // need to check and return zero if that is the case
       if (expSpan >= dtInfo.getBitwidth()) {
