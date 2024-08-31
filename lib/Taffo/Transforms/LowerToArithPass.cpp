@@ -459,56 +459,43 @@ public:
 
       Value conv =
           (dtInfo.getSignd())
-              ? conv = b.create<arith::SIToFPOp>(fType, adaptor.getFrom())
-                           .getResult()
-              : conv = b.create<arith::UIToFPOp>(fType, adaptor.getFrom())
-                           .getResult();
+              ? b.create<arith::SIToFPOp>(fType, adaptor.getFrom()).getResult()
+              : b.create<arith::UIToFPOp>(fType, adaptor.getFrom()).getResult();
 
       // first we extract the exponent
+      // NOTE: there is no need to account for exponent bias here, as it's
+      // already implicitly accounted for
 
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(targetWidth), conv);
 
-      // inverse of sign mask (0b01111...1)
-      IntegerAttr inv_sign_mask =
-          buildIntAttr(b, ((uint64_t)1 << (targetWidth - 1)) - 1);
-      arith::ConstantOp inv_sign_mask_const =
-          b.create<arith::ConstantOp>(inv_sign_mask);
-      // zero out sign bit
-      arith::AndIOp signless =
-          b.create<arith::AndIOp>(bitcast, inv_sign_mask_const);
+      // exp mask
+      unsigned expWidth = fType.getWidth() - mantissaBitwidth - 1;
+      IntegerAttr exp_mask = buildIntAttr(
+          b, ((uint64_t)(((1 << (expWidth)) - 1) << mantissaBitwidth)));
+      arith::ConstantOp exp_mask_const = b.create<arith::ConstantOp>(exp_mask);
+      // zero out sign and mantissa
+      arith::AndIOp exp_only = b.create<arith::AndIOp>(bitcast, exp_mask_const);
 
-      // shift mantissa out
-      IntegerAttr shift_amount = buildIntAttr(b, mantissaBitwidth);
-      arith::ConstantOp shift_amount_const =
-          b.create<arith::ConstantOp>(shift_amount);
-      arith::ShRUIOp expBits =
-          b.create<arith::ShRUIOp>(signless, shift_amount_const);
-
-      // compute actual exponent
-      IntegerAttr dtExp = buildIntAttr(b, dtInfo.getExponent());
+      // compute actual exponent in place
+      IntegerAttr dtExp =
+          buildIntAttr(b, (uint64_t)dtInfo.getExponent() << mantissaBitwidth);
       arith::ConstantOp dtExp_const = b.create<arith::ConstantOp>(dtExp);
-      arith::AddIOp actual_exp = b.create<arith::AddIOp>(dtExp_const, expBits);
-
-      // shift into correct bits
-      IntegerAttr n_mantissa_bits = buildIntAttr(b, mantissaBitwidth);
-      arith::ConstantOp n_mantissa_bits_const =
-          b.create<arith::ConstantOp>(n_mantissa_bits);
-      arith::ShLIOp final_exp =
-          b.create<arith::ShLIOp>(actual_exp, n_mantissa_bits_const);
+      arith::AddIOp actual_exp = b.create<arith::AddIOp>(dtExp_const, exp_only);
 
       // zero out exponent original
-      uint64_t exponent_mask =
+      uint64_t inverse_exponent_mask =
           // 0b1000...0
           ((uint64_t)1 << (targetWidth - 1)) +
           // 0b((0)^exp_size+1) 1111...1
           ((uint64_t)1 << (mantissaBitwidth)) - 1;
-      arith::ConstantOp exp_mask_const =
-          b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
-      arith::AndIOp no_exp = b.create<arith::AndIOp>(bitcast, exp_mask_const);
+      arith::ConstantOp inv_exp_mask_const =
+          b.create<arith::ConstantOp>(buildIntAttr(b, inverse_exponent_mask));
+      arith::AndIOp no_exp =
+          b.create<arith::AndIOp>(bitcast, inv_exp_mask_const);
 
       // set exponent
-      arith::OrIOp final_value = b.create<arith::OrIOp>(no_exp, final_exp);
+      arith::OrIOp final_value = b.create<arith::OrIOp>(no_exp, actual_exp);
 
       // bitcast back
       arith::BitcastOp bitcast_back =
