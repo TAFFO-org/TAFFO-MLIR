@@ -90,7 +90,9 @@ public:
                                         ? std::nullopt
                                         : std::optional<int>(std::abs(lf - ls));
 
-      if (!signd && llvm::any_of(op->getOperands(), [](mlir::Value v) {
+      // if one or more of my operands are signed, I am also signed
+      if (!signd && !llvm::isa<CastToRealOp>(op) &&
+          llvm::any_of(op->getOperands(), [](mlir::Value v) {
             // TODO handle funciton arguments
             DatatypeInfoAttr parentDt =
                 v.getDefiningOp()
@@ -98,7 +100,8 @@ public:
                     .dyn_cast_or_null<DatatypeInfoAttr>();
             if (parentDt)
               return parentDt.getSignd();
-            return true;
+            op->emitOpError()
+                << "DatatypeInfo not set for one or more operands";
           })) {
         signd = true;
         exponent += 1;
