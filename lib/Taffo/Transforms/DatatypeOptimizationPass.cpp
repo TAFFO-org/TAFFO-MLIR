@@ -96,20 +96,29 @@ public:
         op->setAttr("DatatypeInfo", newDt);
 
         // propagate change to users
-        ::llvm::map_range(op->getUsers(), [oldDt, newDt](Operation *childOp) {
+        for (Operation *childOp : op->getUsers()) {
           if(!llvm::isa<TaffoDialect>(childOp->getDialect()))
-            return;
+            continue;
 
           DatatypeInfoAttr childDt =
-              childOp->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
-          if (childDt == nullptr)
-            return;
+              childOp->getAttr("DatatypeInfo").dyn_cast<DatatypeInfoAttr>();
 
-          if (childDt == oldDt)
+          bool expSpansNull = (!oldDt.getExpSpan() && !childDt.getExpSpan());
+
+          bool expSpansNotNull =
+              oldDt.getExpSpan() && childDt.getExpSpan()
+                  ? oldDt.getExpSpan().value() == childDt.getExpSpan().value()
+                  : false;
+
+          bool equal =
+              oldDt.getSignd() == childDt.getSignd()
+              && oldDt.getExponent() == childDt.getExponent()
+              && oldDt.getBitwidth() == childDt.getBitwidth()
+              && (expSpansNull || expSpansNotNull);
+
+          if (equal)
             childOp->setAttr("DatatypeInfo", newDt);
-
-          return;
-        });
+        }
       }
 
       return mlir::WalkResult::advance();
