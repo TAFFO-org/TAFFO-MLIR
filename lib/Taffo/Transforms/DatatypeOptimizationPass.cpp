@@ -101,25 +101,7 @@ public:
           // datatype because it doesn't fetch it from its operand's defining
           // op. This may be bad design, but it saves shifts down the line
           // (and can also be easily changed if the need arises in the future)
-          if (!llvm::isa<taffo::CastToFloatOp>(childOp))
-            continue;
-
-          DatatypeInfoAttr childDt =
-              childOp->getAttr("DatatypeInfo").dyn_cast<DatatypeInfoAttr>();
-
-          bool expSpansNull = (!oldDt.getExpSpan() && !childDt.getExpSpan());
-
-          bool expSpansNotNull =
-              oldDt.getExpSpan() && childDt.getExpSpan()
-                  ? oldDt.getExpSpan().value() == childDt.getExpSpan().value()
-                  : false;
-
-          bool equal = oldDt.getSignd() == childDt.getSignd() &&
-                       oldDt.getExponent() == childDt.getExponent() &&
-                       oldDt.getBitwidth() == childDt.getBitwidth() &&
-                       (expSpansNull || expSpansNotNull);
-
-          if (equal)
+          if (llvm::isa<taffo::CastToFloatOp>(childOp))
             childOp->setAttr("DatatypeInfo", newDt);
         }
       }

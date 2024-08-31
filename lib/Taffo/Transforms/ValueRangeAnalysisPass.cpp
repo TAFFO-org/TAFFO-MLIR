@@ -77,6 +77,11 @@ public:
       // temporary hack, is it good enough?
       int bitwidth = maxSignificantDigits;
 
+      // the left-most bit of an  integer has 2^(bitwidth-1) weight,
+      // we want the leftmost bit of the fixed-point integer to have
+      // weight 2^max_exp, hence the "-1"
+      int exponent = max_exp - (bitwidth - 1);
+
       bool rangeContainsZero =
           (range.first.convertToDouble() * range.second.convertToDouble()) <= 0;
       // if the range contains zero, the smallest exponent depends on the
@@ -85,10 +90,20 @@ public:
                                         ? std::nullopt
                                         : std::optional<int>(std::abs(lf - ls));
 
-      // the left-most bit of an  integer has 2^(bitwidth-1) weight,
-      // we want the leftmost bit of the fixed-point integer to have
-      // weight 2^max_exp, hence the "-1"
-      int exponent = max_exp - (bitwidth - 1);
+      if (!signd && llvm::any_of(op->getOperands(), [](mlir::Value v) {
+            // TODO handle funciton arguments
+            DatatypeInfoAttr parentDt =
+                v.getDefiningOp()
+                    ->getAttr("DatatypeInfo")
+                    .dyn_cast_or_null<DatatypeInfoAttr>();
+            if (parentDt)
+              return parentDt.getSignd();
+            return true;
+          })) {
+        signd = true;
+        exponent += 1;
+      }
+
       op->setAttr("DatatypeInfo",
                   DatatypeInfoAttr::get(op->getContext(), signd, exponent,
                                         bitwidth, exp_span));

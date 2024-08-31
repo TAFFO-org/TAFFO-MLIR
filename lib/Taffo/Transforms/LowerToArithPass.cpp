@@ -95,22 +95,15 @@ public:
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      std::optional<int> rhsExp = getExp(op.getRhs());
-      if (!rhsExp) {
+      std::optional<int> currRhsExp = getExp(op.getRhs());
+      if (!currRhsExp) {
         op->emitOpError() << "DatatypeInfo has not been set for rhs";
         return failure();
       }
-      std::optional<int> lhsExp = getExp(op.getLhs());
-      if (!lhsExp) {
+      std::optional<int> currLhsExp = getExp(op.getLhs());
+      if (!currLhsExp) {
         op->emitOpError() << "DatatypeInfo has not been set for lhs";
         return failure();
-      }
-
-      if (getSignd(op.getRhs()) && getSignd(op.getLhs())) {
-        if (getSignd(op.getRhs()) != getSignd(op.getLhs())) {
-          op->emitOpError() << "Operands have different signedness";
-          return failure();
-        }
       }
 
       const int targetWidth = 32;
@@ -120,13 +113,39 @@ public:
         return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
       };
 
-      int expDiff = std::abs(rhsExp.value() - lhsExp.value());
+      DatatypeInfoAttr dtInfo =
+          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+
+      int rhsExp = currRhsExp.value();
+      int lhsExp = currLhsExp.value();
+      Value rhs = adaptor.getRhs();
+      Value lhs = adaptor.getLhs();
+
+      // reconcile arguments of different signedness
+      if (dtInfo.getSignd() &&
+          (getSignd(op.getRhs()) != getSignd(op.getLhs()))) {
+
+        if (!getSignd(op.getRhs())) {
+          rhsExp += 1;
+          rhs = b.create<arith::ShRSIOp>(
+                     rhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                    .getResult();
+        }
+
+        if (!getSignd(op.getRhs())) {
+          lhsExp += 1;
+          lhs = b.create<arith::ShRSIOp>(
+                     lhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                    .getResult();
+        }
+      }
+
+      int expDiff = std::abs(rhsExp - lhsExp);
       // if the difference in exponent is large enough that largest number of
-      // the smaller operand cannot be represented by the larger operand, delete
-      // the op
+      // the smaller operand cannot be represented by the larger operand,
+      // therefore we delete the op
       if (expDiff > targetWidth) {
-        Value maxExpArg = rhsExp.value() > lhsExp.value() ? adaptor.getRhs()
-                                                          : adaptor.getLhs();
+        Value maxExpArg = rhsExp > lhsExp ? rhs : lhs;
         rewriter.replaceOp(op, maxExpArg);
         return success();
       }
@@ -134,10 +153,8 @@ public:
       Value res;
 
       if (expDiff != 0) {
-        Value to_shift = rhsExp.value() < lhsExp.value() ? adaptor.getRhs()
-                                                         : adaptor.getLhs();
-        Value no_shift = rhsExp.value() > lhsExp.value() ? adaptor.getRhs()
-                                                         : adaptor.getLhs();
+        Value to_shift = rhsExp < lhsExp ? rhs : lhs;
+        Value no_shift = rhsExp > lhsExp ? rhs : lhs;
 
         arith::ConstantOp shift_amount =
             b.create<arith::ConstantOp>(buildIntAttr(b, expDiff));
@@ -145,13 +162,10 @@ public:
             b.create<arith::ShRSIOp>(to_shift, shift_amount.getResult());
         res = b.create<arith::AddIOp>(no_shift, ShOp.getResult());
       } else {
-        res = b.create<arith::AddIOp>(adaptor.getLhs(), adaptor.getRhs());
+        res = b.create<arith::AddIOp>(lhs, rhs);
       }
 
-      DatatypeInfoAttr dtInfo =
-          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
-      int resExpDiff =
-          dtInfo.getExponent() - std::max(rhsExp.value(), lhsExp.value());
+      int resExpDiff = dtInfo.getExponent() - std::max(rhsExp, lhsExp);
 
       if (resExpDiff == 0) {
         rewriter.replaceOp(op, res);
@@ -183,46 +197,57 @@ public:
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
       // TODO handle function arguments
-      auto getExp = [](Value v) -> std::optional<int> {
-        mlir::Operation *op = v.getDefiningOp();
-        if (op == nullptr)
-          return std::nullopt;
-        Attribute attr = op->getAttr("DatatypeInfo");
-        DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
-        return dt ? std::optional<int>{dt.getExponent()} : std::nullopt;
-      };
-
-      std::optional<int> rhsExp = getExp(op.getRhs());
-      if (!rhsExp) {
+      std::optional<int> currRhsExp = getExp(op.getRhs());
+      if (!currRhsExp) {
         op->emitOpError() << "DatatypeInfo has not been set for rhs";
         return failure();
       }
-      std::optional<int> lhsExp = getExp(op.getLhs());
-      if (!lhsExp) {
+      std::optional<int> currLhsExp = getExp(op.getLhs());
+      if (!currLhsExp) {
         op->emitOpError() << "DatatypeInfo has not been set for lhs";
         return failure();
       }
 
-      if (getSignd(op.getRhs()) && getSignd(op.getLhs())) {
-        if (getSignd(op.getRhs()) != getSignd(op.getLhs())) {
-          op->emitOpError() << "Operands have different signedness";
-          return failure();
-        }
-      }
+      const int targetWidth = 32;
+
+      auto buildIntAttr = [targetWidth](Builder b,
+                                        int64_t value) -> IntegerAttr {
+        return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
+      };
 
       DatatypeInfoAttr dtInfo =
           op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
 
-      int implicitExp = rhsExp.value() + lhsExp.value() + dtInfo.getBitwidth();
+      int rhsExp = currRhsExp.value();
+      int lhsExp = currLhsExp.value();
+      Value rhs = adaptor.getRhs();
+      Value lhs = adaptor.getLhs();
+
+      // reconcile arguments of different signedness
+      if (dtInfo.getSignd() &&
+          (getSignd(op.getRhs()) != getSignd(op.getLhs()))) {
+
+        if (!getSignd(op.getRhs())) {
+          rhsExp += 1;
+          rhs = b.create<arith::ShRSIOp>(
+                     rhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                    .getResult();
+        }
+
+        if (!getSignd(op.getRhs())) {
+          lhsExp += 1;
+          lhs = b.create<arith::ShRSIOp>(
+                     lhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                    .getResult();
+        }
+      }
+
+      int implicitExp = rhsExp + lhsExp + dtInfo.getBitwidth();
       int expDiff = dtInfo.getExponent() - implicitExp;
 
       Value res = dtInfo.getSignd()
-                      ? b.create<arith::MulSIExtendedOp>(adaptor.getLhs(),
-                                                         adaptor.getRhs())
-                            .getHigh()
-                      : b.create<arith::MulUIExtendedOp>(adaptor.getLhs(),
-                                                         adaptor.getRhs())
-                            .getHigh();
+                      ? b.create<arith::MulSIExtendedOp>(lhs, rhs).getHigh()
+                      : b.create<arith::MulUIExtendedOp>(lhs, rhs).getHigh();
 
       if (expDiff == 0) {
         rewriter.replaceOp(op, res);
