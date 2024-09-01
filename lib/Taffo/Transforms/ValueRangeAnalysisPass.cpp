@@ -92,16 +92,17 @@ public:
 
       // if one or more of my operands are signed, I am also signed
       if (!signd && !llvm::isa<CastToRealOp>(op) &&
-          llvm::any_of(op->getOperands(), [](mlir::Value v) {
+          llvm::any_of(op->getOperands(), [op](mlir::Value v) {
             // TODO handle funciton arguments
             DatatypeInfoAttr parentDt =
                 v.getDefiningOp()
                     ->getAttr("DatatypeInfo")
                     .dyn_cast_or_null<DatatypeInfoAttr>();
-            if (parentDt)
-              return parentDt.getSignd();
-            op->emitOpError()
-                << "DatatypeInfo not set for one or more operands";
+            if (!parentDt)
+              op->emitOpError()
+                  << "DatatypeInfo not set for one or more operands";
+            assert(parentDt && "DatatypeInfo not set for one or more operands");
+            return parentDt.getSignd();
           })) {
         signd = true;
         exponent += 1;
