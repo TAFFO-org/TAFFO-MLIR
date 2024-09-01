@@ -143,7 +143,7 @@ public:
       int expDiff = std::abs(rhsExp - lhsExp);
       // if the difference in exponent is large enough that largest number of
       // the smaller operand cannot be represented by the larger operand,
-      // therefore we delete the op
+      // we delete the op
       if (expDiff > targetWidth) {
         Value maxExpArg = rhsExp > lhsExp ? rhs : lhs;
         rewriter.replaceOp(op, maxExpArg);
@@ -158,9 +158,11 @@ public:
 
         arith::ConstantOp shift_amount =
             b.create<arith::ConstantOp>(buildIntAttr(b, expDiff));
-        arith::ShRSIOp ShOp =
-            b.create<arith::ShRSIOp>(to_shift, shift_amount.getResult());
-        res = b.create<arith::AddIOp>(no_shift, ShOp.getResult());
+        Value ShOp =
+            dtInfo.getSignd()
+                ? b.create<arith::ShRSIOp>(to_shift, shift_amount).getResult()
+                : b.create<arith::ShRUIOp>(to_shift, shift_amount).getResult();
+        res = b.create<arith::AddIOp>(no_shift, ShOp);
       } else {
         res = b.create<arith::AddIOp>(lhs, rhs);
       }

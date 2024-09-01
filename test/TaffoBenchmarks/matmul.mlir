@@ -1,4 +1,4 @@
-minfunc.func @matmul(%A: memref<128x128xf32>, %B: memref<128x128xf32>) -> (memref<128x128xf32>) attributes {llvm.emit_c_interface} {
+func.func @matmul(%A: memref<128x128xf32>, %B: memref<128x128xf32>) -> (memref<128x128xf32>) attributes {llvm.emit_c_interface} {
   %f0 = arith.constant 0.0 : f32
   %c = arith.constant 0.0 : f32
   %C = memref.alloc() : memref<128x128xf32>
