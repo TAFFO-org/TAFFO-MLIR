@@ -38,6 +38,7 @@ public:
         return mlir::WalkResult::interrupt();
       }
 
+      // TODO: add NaN/Inf check on exp
       int bitwidthDiff = targetBitwidth - dtInfo.getBitwidth();
       int newExp = dtInfo.getExponent() - bitwidthDiff;
       int newBitwidth = targetBitwidth;

@@ -303,132 +303,35 @@ public:
         return b.getIntegerAttr(b.getIntegerType(ogWidth), value);
       };
 
-      auto buildDestIntAttr = [dtInfo](Builder b,
-                                       int64_t value) -> IntegerAttr {
-        return b.getIntegerAttr(b.getIntegerType(dtInfo.getBitwidth()), value);
-      };
-
       // imagine a world where you are a programmer who decides the method
       // "getFPMantissaWidth" returns the width of the mantissa field + 1
       // because it accounts for the implicit bit for some godforsaken reason
       int mantissaBitwidth = fType.getFPMantissaWidth() - 1;
 
-      int floatExpBitwidth = ogWidth - mantissaBitwidth - 1;
+      IntegerType destType = b.getIntegerType(dtInfo.getBitwidth());
 
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(ogWidth), op.getFrom());
 
-      // zero out exponent
-      uint64_t exponent_mask =
-          // 0b1000...0
-          ((uint64_t)1 << (ogWidth - 1)) +
-          // 0b((0)^exp_size+1) 1111...1
-          ((uint64_t)1 << (mantissaBitwidth)) - 1;
-      arith::ConstantOp exp_mask_const =
-          b.create<arith::ConstantOp>(buildIntAttr(b, exponent_mask));
-      arith::AndIOp no_exp = b.create<arith::AndIOp>(bitcast, exp_mask_const);
+      int normalized_exp = dtInfo.getExponent();
 
-      // set exponent (for f32, if signed we set to 30 such that we have room
-      // for the sign bit, if unsigned we set to 31)
-      uint64_t bias = ((uint64_t)1 << (floatExpBitwidth - 1)) - 1;
-      uint64_t new_exp =
-          ((uint64_t)(bias + dtInfo.getBitwidth() - 1 - dtInfo.getSignd()))
-          << (mantissaBitwidth);
-      arith::ConstantOp new_exp_const =
-          b.create<arith::ConstantOp>(buildIntAttr(b, new_exp));
-      arith::OrIOp normalized = b.create<arith::OrIOp>(no_exp, new_exp_const);
+      // compute actual exponent in place
+      IntegerAttr dtExp = buildIntAttr(
+          b, (uint64_t)(std::abs(normalized_exp) << mantissaBitwidth));
+      arith::ConstantOp dtExp_const = b.create<arith::ConstantOp>(dtExp);
+      Value actual_exp =
+          normalized_exp > 0
+              ? b.create<arith::SubIOp>(bitcast, dtExp_const).getResult()
+              : b.create<arith::AddIOp>(bitcast, dtExp_const).getResult();
 
       arith::BitcastOp bitcast_back =
-          b.create<arith::BitcastOp>(fType, normalized);
+          b.create<arith::BitcastOp>(fType, actual_exp);
 
-      Value conv =
-          dtInfo.getSignd()
-              ? b.create<arith::FPToSIOp>(
-                     b.getIntegerType(dtInfo.getBitwidth()), bitcast_back)
-                    .getResult()
-              : b.create<arith::FPToUIOp>(
-                     b.getIntegerType(dtInfo.getBitwidth()), bitcast_back)
-                    .getResult();
+      Value res =
+          (dtInfo.getSignd())
+              ? b.create<arith::FPToSIOp>(destType, bitcast_back).getResult()
+              : b.create<arith::FPToUIOp>(destType, bitcast_back).getResult();
 
-      Value signless = bitcast;
-
-      if (dtInfo.getSignd()) {
-        // inverse of sign mask (0b01111...1)
-        IntegerAttr inv_sign_mask =
-            buildIntAttr(b, ((uint64_t)1 << (ogWidth - 1)) - 1);
-        arith::ConstantOp inv_sign_mask_const =
-            b.create<arith::ConstantOp>(inv_sign_mask);
-        // zero out sign bit
-        signless = b.create<arith::AndIOp>(bitcast, inv_sign_mask_const);
-      }
-
-      // shift mantissa out
-      IntegerAttr shift_amount = buildIntAttr(b, mantissaBitwidth);
-      arith::ConstantOp shift_amount_const =
-          b.create<arith::ConstantOp>(shift_amount);
-      arith::ShRUIOp expBits =
-          b.create<arith::ShRUIOp>(signless, shift_amount_const);
-
-      // account for bias here to save one instruction
-
-      IntegerAttr fixp_exp =
-          buildIntAttr(b, dtInfo.getBitwidth() - 1 - dtInfo.getSignd() +
-                              dtInfo.getExponent() + bias);
-      arith::ConstantOp fixp_exp_const = b.create<arith::ConstantOp>(fixp_exp);
-      arith::SubIOp final_shift_amount =
-          b.create<arith::SubIOp>(fixp_exp_const, expBits);
-
-      int smallestExp =
-          llvm::APFloat::semanticsMinExponent(fType.getFloatSemantics());
-
-      int expSpan = dtInfo.getExpSpan()
-                        ? dtInfo.getExpSpan().value()
-                        : std::abs(dtInfo.getExponent() - smallestExp);
-
-      // if the following condition is true, we might shift by a
-      // number larger than the bitwidth, which will produce poison, so we
-      // need to check and return zero if that is the case
-      if (expSpan >= dtInfo.getBitwidth()) {
-        arith::ConstantOp dtBitwidth_const =
-            b.create<arith::ConstantOp>(buildIntAttr(b, dtInfo.getBitwidth()));
-        arith::CmpIOp oob_shift = b.create<arith::CmpIOp>(
-            arith::CmpIPredicate::uge, final_shift_amount, dtBitwidth_const);
-
-        Value fsa = final_shift_amount;
-        if (ogWidth != dtInfo.getBitwidth()) {
-          fsa = ogWidth > dtInfo.getBitwidth()
-                    ? b.create<arith::TruncIOp>(
-                           b.getIntegerType(dtInfo.getBitwidth()), fsa)
-                          .getResult()
-                    : b.create<arith::ExtUIOp>(b.getIntegerType(ogWidth), fsa)
-                          .getResult();
-        }
-
-        Value res = dtInfo.getSignd()
-                        ? b.create<arith::ShRSIOp>(conv, fsa).getResult()
-                        : b.create<arith::ShRUIOp>(conv, fsa).getResult();
-
-        arith::ConstantOp zero_const =
-            b.create<arith::ConstantOp>(buildDestIntAttr(b, 0));
-        arith::SelectOp check_shift =
-            b.create<arith::SelectOp>(oob_shift, zero_const, res);
-
-        rewriter.replaceOp(op, check_shift);
-        return success();
-      }
-
-      Value fsa = final_shift_amount;
-      if (ogWidth != dtInfo.getBitwidth()) {
-        fsa = ogWidth > dtInfo.getBitwidth()
-                  ? b.create<arith::TruncIOp>(
-                         b.getIntegerType(dtInfo.getBitwidth()), fsa)
-                        .getResult()
-                  : b.create<arith::ExtUIOp>(b.getIntegerType(ogWidth), fsa)
-                        .getResult();
-      }
-      Value res = dtInfo.getSignd()
-                      ? b.create<arith::ShRSIOp>(conv, fsa).getResult()
-                      : b.create<arith::ShRUIOp>(conv, fsa).getResult();
       rewriter.replaceOp(op, res);
       return success();
     }
@@ -495,12 +398,13 @@ public:
           b.create<arith::BitcastOp>(b.getIntegerType(targetWidth), conv);
 
       // compute actual exponent in place
-      IntegerAttr dtExp =
-          buildIntAttr(b, (uint64_t)(std::abs(dtInfo.getExponent()) << mantissaBitwidth));
+      IntegerAttr dtExp = buildIntAttr(
+          b, (uint64_t)(std::abs(dtInfo.getExponent()) << mantissaBitwidth));
       arith::ConstantOp dtExp_const = b.create<arith::ConstantOp>(dtExp);
-      Value actual_exp = dtInfo.getExponent() > 0
-                             ? b.create<arith::AddIOp>(dtExp_const, bitcast).getResult()
-                             : b.create<arith::SubIOp>(dtExp_const, bitcast).getResult();
+      Value actual_exp =
+          dtInfo.getExponent() > 0
+              ? b.create<arith::AddIOp>(bitcast, dtExp_const).getResult()
+              : b.create<arith::SubIOp>(bitcast, dtExp_const).getResult();
 
       // bitcast back
       arith::BitcastOp bitcast_back =
