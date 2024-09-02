@@ -488,44 +488,23 @@ public:
               ? b.create<arith::SIToFPOp>(fType, adaptor.getFrom()).getResult()
               : b.create<arith::UIToFPOp>(fType, adaptor.getFrom()).getResult();
 
-      // first we extract the exponent
       // NOTE: there is no need to account for exponent bias here, as it's
       // already implicitly accounted for
 
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(targetWidth), conv);
 
-      // exp mask
-      unsigned expWidth = fType.getWidth() - mantissaBitwidth - 1;
-      IntegerAttr exp_mask = buildIntAttr(
-          b, ((uint64_t)(((1 << (expWidth)) - 1) << mantissaBitwidth)));
-      arith::ConstantOp exp_mask_const = b.create<arith::ConstantOp>(exp_mask);
-      // zero out sign and mantissa
-      arith::AndIOp exp_only = b.create<arith::AndIOp>(bitcast, exp_mask_const);
-
       // compute actual exponent in place
       IntegerAttr dtExp =
-          buildIntAttr(b, (uint64_t)dtInfo.getExponent() << mantissaBitwidth);
+          buildIntAttr(b, (uint64_t)(std::abs(dtInfo.getExponent()) << mantissaBitwidth));
       arith::ConstantOp dtExp_const = b.create<arith::ConstantOp>(dtExp);
-      arith::AddIOp actual_exp = b.create<arith::AddIOp>(dtExp_const, exp_only);
-
-      // zero out exponent original
-      uint64_t inverse_exponent_mask =
-          // 0b1000...0
-          ((uint64_t)1 << (targetWidth - 1)) +
-          // 0b((0)^exp_size+1) 1111...1
-          ((uint64_t)1 << (mantissaBitwidth)) - 1;
-      arith::ConstantOp inv_exp_mask_const =
-          b.create<arith::ConstantOp>(buildIntAttr(b, inverse_exponent_mask));
-      arith::AndIOp no_exp =
-          b.create<arith::AndIOp>(bitcast, inv_exp_mask_const);
-
-      // set exponent
-      arith::OrIOp final_value = b.create<arith::OrIOp>(no_exp, actual_exp);
+      Value actual_exp = dtInfo.getExponent() > 0
+                             ? b.create<arith::AddIOp>(dtExp_const, bitcast).getResult()
+                             : b.create<arith::SubIOp>(dtExp_const, bitcast).getResult();
 
       // bitcast back
       arith::BitcastOp bitcast_back =
-          b.create<arith::BitcastOp>(fType, final_value);
+          b.create<arith::BitcastOp>(fType, actual_exp);
 
       rewriter.replaceOp(op, bitcast_back);
       return success();
