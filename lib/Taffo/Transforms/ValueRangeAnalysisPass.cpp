@@ -82,14 +82,6 @@ public:
       // weight 2^max_exp, hence the "-1"
       int exponent = max_exp - (bitwidth - 1);
 
-      bool rangeContainsZero =
-          (range.first.convertToDouble() * range.second.convertToDouble()) <= 0;
-      // if the range contains zero, the smallest exponent depends on the
-      // original (float) datatype, which we don't know at this stage
-      std::optional<int> exp_span = rangeContainsZero
-                                        ? std::nullopt
-                                        : std::optional<int>(std::abs(lf - ls));
-
       // if one or more of my operands are signed, I am also signed
       if (!signd && !llvm::isa<CastToRealOp>(op) &&
           llvm::any_of(op->getOperands(), [op](mlir::Value v) {
@@ -110,7 +102,7 @@ public:
 
       op->setAttr("DatatypeInfo",
                   DatatypeInfoAttr::get(op->getContext(), signd, exponent,
-                                        bitwidth, exp_span));
+                                        bitwidth));
 
       return mlir::WalkResult::advance();
     });

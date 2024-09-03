@@ -43,15 +43,9 @@ public:
       int newExp = dtInfo.getExponent() - bitwidthDiff;
       int newBitwidth = targetBitwidth;
 
-      // unsure about this
-      std::optional<int> newExpSpan =
-          dtInfo.getExpSpan() ? std::optional<int>(std::abs(
-                                    dtInfo.getExpSpan().value() + bitwidthDiff))
-                              : std::nullopt;
-
       op->setAttr("DatatypeInfo",
                   DatatypeInfoAttr::get(op->getContext(), dtInfo.getSignd(),
-                                        newExp, newBitwidth, newExpSpan));
+                                        newExp, newBitwidth));
 
       return mlir::WalkResult::advance();
     });
@@ -89,10 +83,7 @@ public:
 
         DatatypeInfoAttr newDt = DatatypeInfoAttr::get(
             op->getContext(), oldDt.getSignd(), oldDt.getExponent() + 1,
-            oldDt.getBitwidth(),
-            oldDt.getExpSpan()
-                ? std::optional<int>(oldDt.getExpSpan().value() + 1)
-                : std::nullopt);
+            oldDt.getBitwidth());
 
         op->setAttr("DatatypeInfo", newDt);
 
