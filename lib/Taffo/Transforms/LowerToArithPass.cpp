@@ -25,10 +25,10 @@ public:
 
   class TaffoToArithTypeConverter : public mlir::TypeConverter {
   public:
-    TaffoToArithTypeConverter(MLIRContext *ctx, int bitwidth) {
+    TaffoToArithTypeConverter(MLIRContext *ctx,) {
       addConversion([](Type type) { return type; });
-      addConversion([ctx, bitwidth](RealType type) -> Type {
-        return IntegerType::get(ctx, bitwidth,
+      addConversion([ctx](RealType type) -> Type {
+        return IntegerType::get(ctx, type.getBitwidth(),
                                 IntegerType::SignednessSemantics::Signless);
       });
 
@@ -411,7 +411,7 @@ public:
     target.addIllegalDialect<TaffoDialect>();
 
     RewritePatternSet patterns(context);
-    TaffoToArithTypeConverter typeConverter(context, 32);
+    TaffoToArithTypeConverter typeConverter(context);
     patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat,
                  ConvertBitcast>(typeConverter, context);
 
