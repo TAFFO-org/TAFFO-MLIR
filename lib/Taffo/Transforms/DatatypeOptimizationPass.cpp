@@ -27,25 +27,20 @@ public:
     const int targetBitwidth = 32;
 
     auto result = module->walk([&](mlir::Operation *op) {
-      if (!llvm::isa<TaffoDialect>(op->getDialect())) {
+      if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
+          llvm::isa<CastToFloatOp>(op)) {
         return mlir::WalkResult::advance();
       }
 
-      DatatypeInfoAttr dtInfo =
-          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
-      if (dtInfo == nullptr) {
-        op->emitOpError() << "This op doesn't have a DatatypeInfo attribute";
-        return mlir::WalkResult::interrupt();
-      }
+      RealType oldType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
       // TODO: add NaN/Inf check on exp
-      int bitwidthDiff = targetBitwidth - dtInfo.getBitwidth();
-      int newExp = dtInfo.getExponent() - bitwidthDiff;
+      int bitwidthDiff = targetBitwidth - oldType.getBitwidth();
+      int newExp = oldType.getExponent() - bitwidthDiff;
       int newBitwidth = targetBitwidth;
 
-      op->setAttr("DatatypeInfo",
-                  DatatypeInfoAttr::get(op->getContext(), dtInfo.getSignd(),
-                                        newExp, newBitwidth));
+      op->getResult(0).setType(RealType::get(
+          op->getContext(), oldType.getSignd(), newExp, newBitwidth));
 
       return mlir::WalkResult::advance();
     });
@@ -59,7 +54,8 @@ public:
     // the same bitwidth, as this has relevance wrt to exponent semantics and
     // fixed-point alignment
     auto result2 = module->walk([&](mlir::Operation *op) {
-      if (!llvm::isa<TaffoDialect>(op->getDialect())) {
+      if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
+          llvm::isa<CastToFloatOp>(op)) {
         return mlir::WalkResult::advance();
       }
 
@@ -68,24 +64,27 @@ public:
             if (!llvm::isa<taffo::AddOp>(addOp)) {
               return false;
             }
-            DatatypeInfoAttr childDt =
-                addOp->getAttr("DatatypeInfo").dyn_cast<DatatypeInfoAttr>();
-            DatatypeInfoAttr parentDt =
-                op->getAttr("DatatypeInfo").dyn_cast<DatatypeInfoAttr>();
+            int childExp =
+                ::llvm::dyn_cast<RealType>(addOp->getResult(0).getType())
+                    .getExponent();
 
-            return childDt.getExponent() == (parentDt.getExponent() + 1);
+            int parentExp =
+                ::llvm::dyn_cast<RealType>(op->getResult(0).getType())
+                    .getExponent();
+
+            return childExp == (parentExp + 1);
           });
 
       if (possibleOverflow) {
 
-        DatatypeInfoAttr oldDt =
-            op->getAttr("DatatypeInfo").dyn_cast<DatatypeInfoAttr>();
+        RealType oldType =
+            ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
-        DatatypeInfoAttr newDt = DatatypeInfoAttr::get(
-            op->getContext(), oldDt.getSignd(), oldDt.getExponent() + 1,
-            oldDt.getBitwidth());
+        RealType newType =
+            RealType::get(op->getContext(), oldType.getSignd(),
+                          oldType.getExponent() + 1, oldType.getBitwidth());
 
-        op->setAttr("DatatypeInfo", newDt);
+        op->getResult(0).setType(newType);
 
         // propagate change to users
         for (Operation *childOp : op->getUsers()) {
@@ -94,7 +93,8 @@ public:
           // op. This may be bad design, but it saves shifts down the line
           // (and can also be easily changed if the need arises in the future)
           if (llvm::isa<taffo::CastToFloatOp>(childOp))
-            childOp->setAttr("DatatypeInfo", newDt);
+            childOp->getResult(0).setType(newType);
+          ;
         }
       }
 

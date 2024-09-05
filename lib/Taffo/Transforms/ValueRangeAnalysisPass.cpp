@@ -37,7 +37,8 @@ public:
       signalPassFailure();
 
     auto result = module->walk([&](mlir::Operation *op) {
-      if (!llvm::isa<TaffoDialect>(op->getDialect())) {
+      if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
+          llvm::isa<CastToFloatOp>(op)) {
         return mlir::WalkResult::advance();
       }
       const TaffoRangeLattice *opRange =
@@ -74,8 +75,8 @@ public:
       // weight
       max_exp = signd ? max_exp + 1 : max_exp;
 
-      // temporary hack, is it good enough?
-      int bitwidth = maxSignificantDigits;
+      RealType type = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
+      int bitwidth = type.getBitwidth() ? type.getBitwidth() : maxSignificantDigits;
 
       // the left-most bit of an  integer has 2^(bitwidth-1) weight,
       // we want the leftmost bit of the fixed-point integer to have
@@ -85,24 +86,14 @@ public:
       // if one or more of my operands are signed, I am also signed
       if (!signd && !llvm::isa<CastToRealOp>(op) &&
           llvm::any_of(op->getOperands(), [op](mlir::Value v) {
-            // TODO handle funciton arguments
-            DatatypeInfoAttr parentDt =
-                v.getDefiningOp()
-                    ->getAttr("DatatypeInfo")
-                    .dyn_cast_or_null<DatatypeInfoAttr>();
-            if (!parentDt)
-              op->emitOpError()
-                  << "DatatypeInfo not set for one or more operands";
-            assert(parentDt && "DatatypeInfo not set for one or more operands");
-            return parentDt.getSignd();
+            return ::llvm::dyn_cast<RealType>(v.getType()).getSignd();
           })) {
         signd = true;
         exponent += 1;
       }
 
-      op->setAttr("DatatypeInfo",
-                  DatatypeInfoAttr::get(op->getContext(), signd, exponent,
-                                        bitwidth));
+      op->getResult(0).setType(
+          RealType::get(op->getContext(), signd, exponent, bitwidth));
 
       return mlir::WalkResult::advance();
     });

@@ -65,22 +65,12 @@ public:
   };
 
   // TODO handle function arguments
-  static std::optional<int> getExp(Value v) {
-    mlir::Operation *op = v.getDefiningOp();
-    if (op == nullptr)
-      return std::nullopt;
-    Attribute attr = op->getAttr("DatatypeInfo");
-    DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
-    return dt ? std::optional<int>{dt.getExponent()} : std::nullopt;
+  static int getExp(Value v) {
+    return ::llvm::dyn_cast<RealType>(v.getType()).getExponent();
   }
 
-  static std::optional<bool> getSignd(Value v) {
-    mlir::Operation *op = v.getDefiningOp();
-    if (op == nullptr)
-      return std::nullopt;
-    Attribute attr = op->getAttr("DatatypeInfo");
-    DatatypeInfoAttr dt = ::llvm::dyn_cast_or_null<DatatypeInfoAttr>(attr);
-    return dt ? std::optional<bool>{dt.getSignd()} : std::nullopt;
+  static bool getSignd(Value v) {
+    return ::llvm::dyn_cast<RealType>(v.getType()).getSignd();
   }
 
   struct ConvertAdd : public OpConversionPattern<AddOp> {
@@ -95,17 +85,6 @@ public:
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      std::optional<int> currRhsExp = getExp(op.getRhs());
-      if (!currRhsExp) {
-        op->emitOpError() << "DatatypeInfo has not been set for rhs";
-        return failure();
-      }
-      std::optional<int> currLhsExp = getExp(op.getLhs());
-      if (!currLhsExp) {
-        op->emitOpError() << "DatatypeInfo has not been set for lhs";
-        return failure();
-      }
-
       const int targetWidth = 32;
 
       auto buildIntAttr = [targetWidth](Builder b,
@@ -113,16 +92,16 @@ public:
         return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
       };
 
-      DatatypeInfoAttr dtInfo =
-          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+      RealType resType =
+          ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
-      int rhsExp = currRhsExp.value();
-      int lhsExp = currLhsExp.value();
+      int rhsExp = getExp(op.getLhs());
+      int lhsExp = getExp(op.getLhs());
       Value rhs = adaptor.getRhs();
       Value lhs = adaptor.getLhs();
 
       // reconcile arguments of different signedness
-      if (dtInfo.getSignd() &&
+      if (resType.getSignd() &&
           (getSignd(op.getRhs()) != getSignd(op.getLhs()))) {
 
         if (!getSignd(op.getRhs())) {
@@ -159,7 +138,7 @@ public:
         arith::ConstantOp shift_amount =
             b.create<arith::ConstantOp>(buildIntAttr(b, expDiff));
         Value ShOp =
-            dtInfo.getSignd()
+            resType.getSignd()
                 ? b.create<arith::ShRSIOp>(to_shift, shift_amount).getResult()
                 : b.create<arith::ShRUIOp>(to_shift, shift_amount).getResult();
         res = b.create<arith::AddIOp>(no_shift, ShOp);
@@ -167,7 +146,7 @@ public:
         res = b.create<arith::AddIOp>(lhs, rhs);
       }
 
-      int resExpDiff = dtInfo.getExponent() - std::max(rhsExp, lhsExp);
+      int resExpDiff = resType.getExponent() - std::max(rhsExp, lhsExp);
 
       if (resExpDiff == 0) {
         rewriter.replaceOp(op, res);
@@ -177,7 +156,7 @@ public:
       arith::ConstantOp align_res =
           b.create<arith::ConstantOp>(buildIntAttr(b, std::abs(resExpDiff)));
       res = resExpDiff > 0
-                ? dtInfo.getSignd()
+                ? resType.getSignd()
                       ? b.create<arith::ShRSIOp>(res, align_res).getResult()
                       : b.create<arith::ShRUIOp>(res, align_res).getResult()
                 : b.create<arith::ShLIOp>(res, align_res).getResult();
@@ -198,18 +177,6 @@ public:
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      // TODO handle function arguments
-      std::optional<int> currRhsExp = getExp(op.getRhs());
-      if (!currRhsExp) {
-        op->emitOpError() << "DatatypeInfo has not been set for rhs";
-        return failure();
-      }
-      std::optional<int> currLhsExp = getExp(op.getLhs());
-      if (!currLhsExp) {
-        op->emitOpError() << "DatatypeInfo has not been set for lhs";
-        return failure();
-      }
-
       const int targetWidth = 32;
 
       auto buildIntAttr = [targetWidth](Builder b,
@@ -217,16 +184,16 @@ public:
         return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
       };
 
-      DatatypeInfoAttr dtInfo =
-          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+      RealType resType =
+          ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
-      int rhsExp = currRhsExp.value();
-      int lhsExp = currLhsExp.value();
+      int rhsExp = getExp(op.getLhs());
+      int lhsExp = getExp(op.getLhs());
       Value rhs = adaptor.getRhs();
       Value lhs = adaptor.getLhs();
 
       // reconcile arguments of different signedness
-      if (dtInfo.getSignd() &&
+      if (resType.getSignd() &&
           (getSignd(op.getRhs()) != getSignd(op.getLhs()))) {
 
         if (!getSignd(op.getRhs())) {
@@ -244,10 +211,10 @@ public:
         }
       }
 
-      int implicitExp = rhsExp + lhsExp + dtInfo.getBitwidth();
-      int expDiff = dtInfo.getExponent() - implicitExp;
+      int implicitExp = rhsExp + lhsExp + resType.getBitwidth();
+      int expDiff = resType.getExponent() - implicitExp;
 
-      Value res = dtInfo.getSignd()
+      Value res = resType.getSignd()
                       ? b.create<arith::MulSIExtendedOp>(lhs, rhs).getHigh()
                       : b.create<arith::MulUIExtendedOp>(lhs, rhs).getHigh();
 
@@ -258,9 +225,9 @@ public:
 
       arith::ConstantOp align_res =
           b.create<arith::ConstantOp>(b.getIntegerAttr(
-              b.getIntegerType(dtInfo.getBitwidth()), std::abs(expDiff)));
+              b.getIntegerType(resType.getBitwidth()), std::abs(expDiff)));
       res = expDiff > 0
-                ? dtInfo.getSignd()
+                ? resType.getSignd()
                       ? b.create<arith::ShRSIOp>(res, align_res).getResult()
                       : b.create<arith::ShRUIOp>(res, align_res).getResult()
                 : b.create<arith::ShLIOp>(res, align_res).getResult();
@@ -290,10 +257,10 @@ public:
         return failure();
       }
 
-      DatatypeInfoAttr dtInfo =
-          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+      RealType resType =
+          ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
-      if (dtInfo.getBitwidth() > 64) {
+      if (resType.getBitwidth() > 64) {
         op->emitOpError()
             << "Conversion to fixpoints bigger than 64 is not yet supported";
         return failure();
@@ -308,12 +275,12 @@ public:
       // because it accounts for the implicit bit for some godforsaken reason
       int mantissaBitwidth = fType.getFPMantissaWidth() - 1;
 
-      IntegerType destType = b.getIntegerType(dtInfo.getBitwidth());
+      IntegerType destType = b.getIntegerType(resType.getBitwidth());
 
       arith::BitcastOp bitcast =
           b.create<arith::BitcastOp>(b.getIntegerType(ogWidth), op.getFrom());
 
-      int normalized_exp = dtInfo.getExponent();
+      int normalized_exp = resType.getExponent();
 
       // compute actual exponent in place
       IntegerAttr dtExp = buildIntAttr(
@@ -328,7 +295,7 @@ public:
           b.create<arith::BitcastOp>(fType, actual_exp);
 
       Value res =
-          (dtInfo.getSignd())
+          (resType.getSignd())
               ? b.create<arith::FPToSIOp>(destType, bitcast_back).getResult()
               : b.create<arith::FPToUIOp>(destType, bitcast_back).getResult();
 
@@ -353,10 +320,10 @@ public:
 
       int targetWidth = fType.getWidth();
 
-      DatatypeInfoAttr dtInfo =
-          op->getAttr("DatatypeInfo").dyn_cast_or_null<DatatypeInfoAttr>();
+      RealType fromType =
+          ::llvm::dyn_cast<RealType>(op->getOperand(0).getType());
 
-      if (dtInfo.getBitwidth() > 64) {
+      if (fromType.getBitwidth() > 64) {
         op->emitOpError()
             << "Conversion from fixpoints bigger than 64 is not yet supported";
         return failure();
@@ -368,7 +335,7 @@ public:
         return failure();
       }
 
-      if (dtInfo.getExponent() >
+      if (fromType.getExponent() >
           llvm::APFloat::semanticsMaxExponent(fType.getFloatSemantics())) {
         // maybe add an option for saturating conversion in the future?
         op->emitOpError()
@@ -387,7 +354,7 @@ public:
       int mantissaBitwidth = fType.getFPMantissaWidth() - 1;
 
       Value conv =
-          (dtInfo.getSignd())
+          (fromType.getSignd())
               ? b.create<arith::SIToFPOp>(fType, adaptor.getFrom()).getResult()
               : b.create<arith::UIToFPOp>(fType, adaptor.getFrom()).getResult();
 
@@ -399,10 +366,10 @@ public:
 
       // compute actual exponent in place
       IntegerAttr dtExp = buildIntAttr(
-          b, (uint64_t)(std::abs(dtInfo.getExponent()) << mantissaBitwidth));
+          b, (uint64_t)(std::abs(fromType.getExponent()) << mantissaBitwidth));
       arith::ConstantOp dtExp_const = b.create<arith::ConstantOp>(dtExp);
       Value actual_exp =
-          dtInfo.getExponent() > 0
+          fromType.getExponent() > 0
               ? b.create<arith::AddIOp>(bitcast, dtExp_const).getResult()
               : b.create<arith::SubIOp>(bitcast, dtExp_const).getResult();
 
@@ -425,7 +392,7 @@ public:
     matchAndRewrite(BitcastOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
 
-      if(op.getFrom().getType() == op.getRes().getType()) {
+      if (op.getFrom().getType() == op.getRes().getType()) {
         op->emitOpError() << "bitcasting to same type";
         return failure();
       }
@@ -445,9 +412,8 @@ public:
 
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context, 32);
-    patterns
-        .add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat, ConvertBitcast>(
-            typeConverter, context);
+    patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat,
+                 ConvertBitcast>(typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();

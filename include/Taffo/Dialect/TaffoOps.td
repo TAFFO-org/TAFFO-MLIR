@@ -71,8 +71,7 @@ def Taffo_BitcastOp : Taffo_Op<"bitcast",
 }
 
 def Taffo_AddOp : Taffo_Op<"add",
-    [SameOperandsAndResultType,
-    DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
     let summary = "taffo add summary";
     let description = [{
         taffo add description
@@ -81,12 +80,12 @@ def Taffo_AddOp : Taffo_Op<"add",
     let arguments = (ins TaffoReal:$lhs, TaffoReal:$rhs);
     let results = (outs TaffoReal:$res);
 
-    let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($res)";
+    let assemblyFormat = "$lhs `,` $rhs attr-dict `:`"
+                         "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
 }
 
 def Taffo_MultOp : Taffo_Op<"mult",
-    [SameOperandsAndResultType,
-    DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
     let summary = "taffo mult summary";
     let description = [{
         taffo mult description
@@ -95,7 +94,8 @@ def Taffo_MultOp : Taffo_Op<"mult",
     let arguments = (ins TaffoReal:$lhs, TaffoReal:$rhs);
     let results = (outs TaffoReal:$res);
 
-    let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($res)";
+    let assemblyFormat = "$lhs `,` $rhs attr-dict `:`"
+                         "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
 }
 
 #endif // TAFFO_DIALECT_TAFFOOPS_TD

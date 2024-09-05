@@ -21,7 +21,11 @@ def Taffo_Real : Taffo_Type<"Real", "real"> {
         real type description.
     }];
 
-    //let parameters = (ins "taffo::DatatypeInfo" $dt);
+    let parameters = (ins OptionalParameter<"bool">:$signd,
+                          OptionalParameter<"int">:$exponent,
+                          OptionalParameter<"int">:$bitwidth);
+
+    let assemblyFormat = "(`<` params^ `>`)?";
 
 }
 
