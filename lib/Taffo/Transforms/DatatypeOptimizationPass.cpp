@@ -48,8 +48,8 @@ public:
     if (result.wasInterrupted())
       signalPassFailure();
 
-    // This manipulation on addOp in necessary to prevent overflow. This can
-    // be achieved in different parts of the pipeline if the need arises in
+    // This manipulation on users addOp is necessary to prevent overflow. This
+    // can be achieved in different parts of the pipeline if the need arises in
     // the future. It relies on the fact that all taffo ops are converting to
     // the same bitwidth, as this has relevance wrt to exponent semantics and
     // fixed-point alignment
@@ -76,7 +76,6 @@ public:
           });
 
       if (possibleOverflow) {
-
         RealType oldType =
             ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
@@ -85,17 +84,6 @@ public:
                           oldType.getExponent() + 1, oldType.getBitwidth());
 
         op->getResult(0).setType(newType);
-
-        // propagate change to users
-        for (Operation *childOp : op->getUsers()) {
-          // currently CastToFloat this is the only op that relies on same
-          // datatype because it doesn't fetch it from its operand's defining
-          // op. This may be bad design, but it saves shifts down the line
-          // (and can also be easily changed if the need arises in the future)
-          if (llvm::isa<taffo::CastToFloatOp>(childOp))
-            childOp->getResult(0).setType(newType);
-          ;
-        }
       }
 
       return mlir::WalkResult::advance();

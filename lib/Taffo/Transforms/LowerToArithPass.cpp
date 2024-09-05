@@ -95,7 +95,7 @@ public:
       RealType resType =
           ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
-      int rhsExp = getExp(op.getLhs());
+      int rhsExp = getExp(op.getRhs());
       int lhsExp = getExp(op.getLhs());
       Value rhs = adaptor.getRhs();
       Value lhs = adaptor.getLhs();

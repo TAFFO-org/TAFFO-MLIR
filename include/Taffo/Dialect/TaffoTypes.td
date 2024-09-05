@@ -25,7 +25,7 @@ def Taffo_Real : Taffo_Type<"Real", "real"> {
                           OptionalParameter<"int">:$exponent,
                           OptionalParameter<"int">:$bitwidth);
 
-    let assemblyFormat = "(`<` params^ `>`)?";
+    let assemblyFormat = "(`r``<` params^ `>`)?";
 
 }
 
