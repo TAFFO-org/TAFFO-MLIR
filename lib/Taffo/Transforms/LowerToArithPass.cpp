@@ -25,7 +25,7 @@ public:
 
   class TaffoToArithTypeConverter : public mlir::TypeConverter {
   public:
-    TaffoToArithTypeConverter(MLIRContext *ctx,) {
+    TaffoToArithTypeConverter(MLIRContext *ctx) {
       addConversion([](Type type) { return type; });
       addConversion([ctx](RealType type) -> Type {
         return IntegerType::get(ctx, type.getBitwidth(),
