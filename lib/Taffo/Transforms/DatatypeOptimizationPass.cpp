@@ -34,10 +34,14 @@ public:
 
       RealType oldType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
+
       // TODO: add NaN/Inf check on exp
-      int bitwidthDiff = targetBitwidth - oldType.getBitwidth();
+      // use a trait in the future?
+      bool isWide = (llvm::isa<WideAddOp>(op) || llvm::isa<WideMultOp>(op));
+      int newBitwidth = isWide ? targetBitwidth * 2 : targetBitwidth;
+
+      int bitwidthDiff = newBitwidth - oldType.getBitwidth();
       int newExp = oldType.getExponent() - bitwidthDiff;
-      int newBitwidth = targetBitwidth;
 
       op->getResult(0).setType(RealType::get(
           op->getContext(), oldType.getSignd(), newExp, newBitwidth));

@@ -64,13 +64,96 @@ public:
     }
   };
 
-  // TODO handle function arguments
   static int getExp(Value v) {
     return ::llvm::dyn_cast<RealType>(v.getType()).getExponent();
   }
 
   static bool getSignd(Value v) {
     return ::llvm::dyn_cast<RealType>(v.getType()).getSignd();
+  }
+
+  template <typename T1, typename T2>
+  static LogicalResult ConvertAddCommon(T1 op, T2 adaptor,
+                                        ConversionPatternRewriter &rewriter) {
+
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+    RealType resType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
+
+    const int targetWidth = resType.getBitwidth();
+
+    auto buildIntAttr = [targetWidth](Builder b, int64_t value) -> IntegerAttr {
+      return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
+    };
+
+    Value ogLhs = op.getLhs();
+    Value ogRhs = op.getRhs();
+    int lhsExp = getExp(ogLhs);
+    int rhsExp = getExp(ogRhs);
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
+
+    // reconcile arguments of different signedness
+    if (resType.getSignd() && (getSignd(ogRhs) != getSignd(ogLhs))) {
+
+      if (!getSignd(ogLhs)) {
+        lhsExp += 1;
+        lhs = b.create<arith::ShRSIOp>(
+                   lhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                  .getResult();
+      }
+
+      if (!getSignd(ogRhs)) {
+        rhsExp += 1;
+        rhs = b.create<arith::ShRSIOp>(
+                   rhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                  .getResult();
+      }
+    }
+
+    int expDiff = std::abs(rhsExp - lhsExp);
+    // if the difference in exponent is large enough that largest number of
+    // the smaller operand cannot be represented by the larger operand,
+    // we delete the op
+    if (expDiff > targetWidth) {
+      Value maxExpArg = rhsExp > lhsExp ? rhs : lhs;
+      rewriter.replaceOp(op, maxExpArg);
+      return success();
+    }
+
+    Value res;
+
+    if (expDiff != 0) {
+      Value to_shift = rhsExp < lhsExp ? rhs : lhs;
+      Value no_shift = rhsExp > lhsExp ? rhs : lhs;
+
+      arith::ConstantOp shift_amount =
+          b.create<arith::ConstantOp>(buildIntAttr(b, expDiff));
+      Value ShOp =
+          resType.getSignd()
+              ? b.create<arith::ShRSIOp>(to_shift, shift_amount).getResult()
+              : b.create<arith::ShRUIOp>(to_shift, shift_amount).getResult();
+      res = b.create<arith::AddIOp>(no_shift, ShOp);
+    } else {
+      res = b.create<arith::AddIOp>(lhs, rhs);
+    }
+
+    int resExpDiff = resType.getExponent() - std::max(rhsExp, lhsExp);
+
+    if (resExpDiff == 0) {
+      rewriter.replaceOp(op, res);
+      return success();
+    }
+
+    arith::ConstantOp align_res =
+        b.create<arith::ConstantOp>(buildIntAttr(b, std::abs(resExpDiff)));
+    res = resExpDiff > 0
+              ? resType.getSignd()
+                    ? b.create<arith::ShRSIOp>(res, align_res).getResult()
+                    : b.create<arith::ShRUIOp>(res, align_res).getResult()
+              : b.create<arith::ShLIOp>(res, align_res).getResult();
+    rewriter.replaceOp(op, res);
+    return success();
   }
 
   struct ConvertAdd : public OpConversionPattern<AddOp> {
@@ -82,88 +165,84 @@ public:
     LogicalResult
     matchAndRewrite(AddOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
+      return ConvertAddCommon<AddOp, OpAdaptor>(op, adaptor, rewriter);
+    }
+  };
 
-      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+  struct ConvertWideAdd : public OpConversionPattern<WideAddOp> {
+    ConvertWideAdd(mlir::MLIRContext *context)
+        : OpConversionPattern<WideAddOp>(context) {}
 
-      const int targetWidth = 32;
+    using OpConversionPattern::OpConversionPattern;
 
-      auto buildIntAttr = [targetWidth](Builder b,
-                                        int64_t value) -> IntegerAttr {
-        return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
-      };
+    LogicalResult
+    matchAndRewrite(WideAddOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+      return ConvertAddCommon<WideAddOp, OpAdaptor>(op, adaptor, rewriter);
+    }
+  };
 
-      RealType resType =
-          ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
+  template <typename T1, typename T2>
+  static LogicalResult ConvertMultCommon(T1 op, T2 adaptor,
+                                         ConversionPatternRewriter &rewriter) {
 
-      int rhsExp = getExp(op.getRhs());
-      int lhsExp = getExp(op.getLhs());
-      Value rhs = adaptor.getRhs();
-      Value lhs = adaptor.getLhs();
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      // reconcile arguments of different signedness
-      if (resType.getSignd() &&
-          (getSignd(op.getRhs()) != getSignd(op.getLhs()))) {
+    RealType resType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
-        if (!getSignd(op.getRhs())) {
-          rhsExp += 1;
-          rhs = b.create<arith::ShRSIOp>(
-                     rhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
-                    .getResult();
-        }
+    const int targetWidth = resType.getBitwidth();
 
-        if (!getSignd(op.getRhs())) {
-          lhsExp += 1;
-          lhs = b.create<arith::ShRSIOp>(
-                     lhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
-                    .getResult();
-        }
+    auto buildIntAttr = [targetWidth](Builder b, int64_t value) -> IntegerAttr {
+      return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
+    };
+
+    Value ogLhs = op.getLhs();
+    Value ogRhs = op.getRhs();
+    int lhsExp = getExp(ogLhs);
+    int rhsExp = getExp(ogRhs);
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
+
+    // reconcile arguments of different signedness
+    if (resType.getSignd() && (getSignd(ogRhs) != getSignd(ogLhs))) {
+
+      if (!getSignd(ogLhs)) {
+        lhsExp += 1;
+        lhs = b.create<arith::ShRSIOp>(
+                   lhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                  .getResult();
       }
 
-      int expDiff = std::abs(rhsExp - lhsExp);
-      // if the difference in exponent is large enough that largest number of
-      // the smaller operand cannot be represented by the larger operand,
-      // we delete the op
-      if (expDiff > targetWidth) {
-        Value maxExpArg = rhsExp > lhsExp ? rhs : lhs;
-        rewriter.replaceOp(op, maxExpArg);
-        return success();
+      if (!getSignd(ogRhs)) {
+        rhsExp += 1;
+        rhs = b.create<arith::ShRSIOp>(
+                   rhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                  .getResult();
       }
+    }
 
-      Value res;
+    int implicitExp = rhsExp + lhsExp + resType.getBitwidth();
+    int expDiff = resType.getExponent() - implicitExp;
 
-      if (expDiff != 0) {
-        Value to_shift = rhsExp < lhsExp ? rhs : lhs;
-        Value no_shift = rhsExp > lhsExp ? rhs : lhs;
+    Value res = resType.getSignd()
+                    ? b.create<arith::MulSIExtendedOp>(lhs, rhs).getHigh()
+                    : b.create<arith::MulUIExtendedOp>(lhs, rhs).getHigh();
 
-        arith::ConstantOp shift_amount =
-            b.create<arith::ConstantOp>(buildIntAttr(b, expDiff));
-        Value ShOp =
-            resType.getSignd()
-                ? b.create<arith::ShRSIOp>(to_shift, shift_amount).getResult()
-                : b.create<arith::ShRUIOp>(to_shift, shift_amount).getResult();
-        res = b.create<arith::AddIOp>(no_shift, ShOp);
-      } else {
-        res = b.create<arith::AddIOp>(lhs, rhs);
-      }
-
-      int resExpDiff = resType.getExponent() - std::max(rhsExp, lhsExp);
-
-      if (resExpDiff == 0) {
-        rewriter.replaceOp(op, res);
-        return success();
-      }
-
-      arith::ConstantOp align_res =
-          b.create<arith::ConstantOp>(buildIntAttr(b, std::abs(resExpDiff)));
-      res = resExpDiff > 0
-                ? resType.getSignd()
-                      ? b.create<arith::ShRSIOp>(res, align_res).getResult()
-                      : b.create<arith::ShRUIOp>(res, align_res).getResult()
-                : b.create<arith::ShLIOp>(res, align_res).getResult();
+    if (expDiff == 0) {
       rewriter.replaceOp(op, res);
       return success();
     }
-  };
+
+    arith::ConstantOp align_res = b.create<arith::ConstantOp>(b.getIntegerAttr(
+        b.getIntegerType(resType.getBitwidth()), std::abs(expDiff)));
+    res = expDiff > 0
+              ? resType.getSignd()
+                    ? b.create<arith::ShRSIOp>(res, align_res).getResult()
+                    : b.create<arith::ShRUIOp>(res, align_res).getResult()
+              : b.create<arith::ShLIOp>(res, align_res).getResult();
+    rewriter.replaceOp(op, res);
+    return success();
+  }
 
   struct ConvertMult : public OpConversionPattern<MultOp> {
     ConvertMult(mlir::MLIRContext *context)
@@ -174,65 +253,20 @@ public:
     LogicalResult
     matchAndRewrite(MultOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
+      return ConvertMultCommon<MultOp, OpAdaptor>(op, adaptor, rewriter);
+    }
+  };
 
-      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+  struct ConvertWideMult : public OpConversionPattern<WideMultOp> {
+    ConvertWideMult(mlir::MLIRContext *context)
+        : OpConversionPattern<WideMultOp>(context) {}
 
-      const int targetWidth = 32;
+    using OpConversionPattern::OpConversionPattern;
 
-      auto buildIntAttr = [targetWidth](Builder b,
-                                        int64_t value) -> IntegerAttr {
-        return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
-      };
-
-      RealType resType =
-          ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
-
-      int rhsExp = getExp(op.getLhs());
-      int lhsExp = getExp(op.getLhs());
-      Value rhs = adaptor.getRhs();
-      Value lhs = adaptor.getLhs();
-
-      // reconcile arguments of different signedness
-      if (resType.getSignd() &&
-          (getSignd(op.getRhs()) != getSignd(op.getLhs()))) {
-
-        if (!getSignd(op.getRhs())) {
-          rhsExp += 1;
-          rhs = b.create<arith::ShRSIOp>(
-                     rhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
-                    .getResult();
-        }
-
-        if (!getSignd(op.getRhs())) {
-          lhsExp += 1;
-          lhs = b.create<arith::ShRSIOp>(
-                     lhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
-                    .getResult();
-        }
-      }
-
-      int implicitExp = rhsExp + lhsExp + resType.getBitwidth();
-      int expDiff = resType.getExponent() - implicitExp;
-
-      Value res = resType.getSignd()
-                      ? b.create<arith::MulSIExtendedOp>(lhs, rhs).getHigh()
-                      : b.create<arith::MulUIExtendedOp>(lhs, rhs).getHigh();
-
-      if (expDiff == 0) {
-        rewriter.replaceOp(op, res);
-        return success();
-      }
-
-      arith::ConstantOp align_res =
-          b.create<arith::ConstantOp>(b.getIntegerAttr(
-              b.getIntegerType(resType.getBitwidth()), std::abs(expDiff)));
-      res = expDiff > 0
-                ? resType.getSignd()
-                      ? b.create<arith::ShRSIOp>(res, align_res).getResult()
-                      : b.create<arith::ShRUIOp>(res, align_res).getResult()
-                : b.create<arith::ShLIOp>(res, align_res).getResult();
-      rewriter.replaceOp(op, res);
-      return success();
+    LogicalResult
+    matchAndRewrite(WideMultOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+      return ConvertMultCommon<WideMultOp, OpAdaptor>(op, adaptor, rewriter);
     }
   };
 
@@ -257,8 +291,7 @@ public:
         return failure();
       }
 
-      RealType resType =
-          ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
+      RealType resType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
       if (resType.getBitwidth() > 64) {
         op->emitOpError()
@@ -413,7 +446,8 @@ public:
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context);
     patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat,
-                 ConvertBitcast>(typeConverter, context);
+                 ConvertBitcast, ConvertWideAdd, ConvertWideMult>(typeConverter,
+                                                                  context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();

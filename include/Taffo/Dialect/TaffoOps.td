@@ -6,6 +6,7 @@ include "Taffo/Dialect/TaffoTypes.td"
 include "Taffo/Interfaces/InferTaffoRangeNtvInterface.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 
+include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 
 //===---------------------------------------------------------------------===//
@@ -16,6 +17,10 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 def TaffoReal :
     Type<CPred<"$_self.isa<::mlir::taffo::RealType>()">,
          "real", "::mlir::taffo::RealType">;
+
+//def Wide : NativeOpTrait<"Wide">{
+//    //let cppNamespace = "::mlir::taffo";
+//}
 
 //===---------------------------------------------------------------------===//
 // Taffo operation definition.
@@ -98,4 +103,31 @@ def Taffo_MultOp : Taffo_Op<"mult",
                          "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
 }
 
+def Taffo_WideAddOp : Taffo_Op<"wadd",
+    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    let summary = "taffo wide add summary";
+    let description = [{
+        taffo wide add description
+    }];
+
+    let arguments = (ins TaffoReal:$lhs, TaffoReal:$rhs);
+    let results = (outs TaffoReal:$res);
+
+    let assemblyFormat = "$lhs `,` $rhs attr-dict `:`"
+                         "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
+}
+
+def Taffo_WideMultOp : Taffo_Op<"wmult",
+    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    let summary = "taffo wide mult summary";
+    let description = [{
+        taffo wide mult description
+    }];
+
+    let arguments = (ins TaffoReal:$lhs, TaffoReal:$rhs);
+    let results = (outs TaffoReal:$res);
+
+    let assemblyFormat = "$lhs `,` $rhs attr-dict `:`"
+                         "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
+}
 #endif // TAFFO_DIALECT_TAFFOOPS_TD
