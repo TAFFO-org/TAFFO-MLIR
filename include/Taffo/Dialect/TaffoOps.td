@@ -68,8 +68,8 @@ def Taffo_BitcastOp : Taffo_Op<"bitcast",
         dt-optimization pass but before lower-to-arith
     }];
 
-    let arguments = (ins AnyTypeOf<[I32, TaffoReal]>:$from);
-    let results = (outs AnyTypeOf<[I32, TaffoReal]>:$res);
+    let arguments = (ins AnyTypeOf<[AnySignlessInteger, TaffoReal]>:$from);
+    let results = (outs AnyTypeOf<[AnySignlessInteger, TaffoReal]>:$res);
 
     let assemblyFormat = "$from attr-dict `:`"
                                "type($from) `->` type($res)";
