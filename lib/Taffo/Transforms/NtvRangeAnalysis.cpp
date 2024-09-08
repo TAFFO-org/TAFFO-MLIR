@@ -86,6 +86,7 @@ void TaffoNtvRangeAnalysis::visitOperation(
       }));
 
   auto joinCallback = [&](Value v, const NtvRange &attrs) {
+    // TODO handle function arguments
     auto result = dyn_cast<OpResult>(v);
     if (!result)
       return;
