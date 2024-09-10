@@ -60,16 +60,29 @@ def Taffo_CastToFloatOp : Taffo_Op<"cast2float",
                                "type($from) `->`  type($res)";
 }
 
-def Taffo_BitcastOp : Taffo_Op<"bitcast",
-    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
-    let summary = "taffo bitcast summary";
+def Taffo_BitcastToRealOp : Taffo_Op<"bitcasti2r"> {
+    let summary = "taffo bitcast to real summary";
     let description = [{
         this op is only used for debugging and running tests after the
         dt-optimization pass but before lower-to-arith
     }];
 
-    let arguments = (ins AnyTypeOf<[AnySignlessInteger, TaffoReal]>:$from);
-    let results = (outs AnyTypeOf<[AnySignlessInteger, TaffoReal]>:$res);
+    let arguments = (ins AnySignlessInteger:$from);
+    let results = (outs TaffoReal:$res);
+
+    let assemblyFormat = "$from attr-dict `:`"
+                               "type($from) `->` type($res)";
+}
+
+def Taffo_BitcastToIntOp : Taffo_Op<"bitcastr2i"> {
+    let summary = "taffo bitcast to int summary";
+    let description = [{
+        this op is only used for debugging and running tests after the
+        dt-optimization pass but before lower-to-arith
+    }];
+
+    let arguments = (ins  TaffoReal:$from);
+    let results = (outs AnySignlessInteger:$res);
 
     let assemblyFormat = "$from attr-dict `:`"
                                "type($from) `->` type($res)";
