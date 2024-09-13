@@ -408,11 +408,6 @@ public:
     matchAndRewrite(BitcastToRealOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
 
-      if (op.getFrom().getType() == op.getRes().getType()) {
-        op->emitOpError() << "bitcasting to same type";
-        return failure();
-      }
-
       rewriter.replaceOp(op, adaptor.getFrom());
       return success();
     }
@@ -427,11 +422,6 @@ public:
     LogicalResult
     matchAndRewrite(BitcastToIntOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
-
-      if (op.getFrom().getType() == op.getRes().getType()) {
-        op->emitOpError() << "bitcasting to same type";
-        return failure();
-      }
 
       rewriter.replaceOp(op, adaptor.getFrom());
       return success();
