@@ -171,14 +171,15 @@ public:
 
   template <typename T1, typename T2>
   static LogicalResult ConvertMultCommon(T1 op, T2 adaptor,
-                                         ConversionPatternRewriter &rewriter,
-                                         bool isWide) {
+                                         ConversionPatternRewriter &rewriter) {
 
     ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
     RealType resType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
-    const int targetWidth = resType.getBitwidth();
+    const int resWidth = resType.getBitwidth();
+    const int ogWidth = resWidth;
+    const int extWidth = resWidth * 2;
 
     auto buildNarrowAttr = [ogWidth](Builder b, int64_t value) -> IntegerAttr {
       return b.getIntegerAttr(b.getIntegerType(ogWidth), value);
@@ -237,31 +238,22 @@ public:
       return success();
     }
 
-    arith::ConstantOp align_res = b.create<arith::ConstantOp>(b.getIntegerAttr(
-        b.getIntegerType(resType.getBitwidth()), std::abs(expDiff)));
-    res = expDiff > 0
+    int correctionFactor = expDiff + ogWidth;
+    arith::ConstantOp align_res = b.create<arith::ConstantOp>(
+        buildWideAttr(b, std::abs(correctionFactor)));
+
+    // this should never be < 0, but it's best to check (if it is, it means
+    // that VRA has been broken)
+    res = correctionFactor > 0
               ? resType.getSignd()
                     ? b.create<arith::ShRSIOp>(res, align_res).getResult()
                     : b.create<arith::ShRUIOp>(res, align_res).getResult()
               : b.create<arith::ShLIOp>(res, align_res).getResult();
+
+    res =
+        b.create<arith::TruncIOp>(b.getIntegerType(ogWidth), res).getResult();
     rewriter.replaceOp(op, res);
     return success();
-      int correctionFactor = expDiff + ogWidth;
-      arith::ConstantOp align_res = b.create<arith::ConstantOp>(
-          buildWideAttr(b, std::abs(correctionFactor)));
-
-      // this should never be < 0, but it's best to check (if it is, it means
-      // that VRA has been broken)
-      res = correctionFactor > 0
-                ? resType.getSignd()
-                      ? b.create<arith::ShRSIOp>(res, align_res).getResult()
-                      : b.create<arith::ShRUIOp>(res, align_res).getResult()
-                : b.create<arith::ShLIOp>(res, align_res).getResult();
-
-      res =
-          b.create<arith::TruncIOp>(b.getIntegerType(ogWidth), res).getResult();
-      rewriter.replaceOp(op, res);
-      return success();
   }
 
   struct ConvertMult : public OpConversionPattern<MultOp> {
