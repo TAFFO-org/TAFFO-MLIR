@@ -169,15 +169,6 @@ public:
     }
   };
 
-  struct ConvertMult : public OpConversionPattern<MultOp> {
-    ConvertMult(mlir::MLIRContext *context)
-        : OpConversionPattern<MultOp>(context) {}
-
-    using OpConversionPattern::OpConversionPattern;
-
-    LogicalResult
-    matchAndRewrite(MultOp op, OpAdaptor adaptor,
-                    ConversionPatternRewriter &rewriter) const override {
   template <typename T1, typename T2>
   static LogicalResult ConvertMultCommon(T1 op, T2 adaptor,
                                          ConversionPatternRewriter &rewriter) {
