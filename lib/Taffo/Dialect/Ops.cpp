@@ -45,9 +45,4 @@ void MultOp::inferTaffoRanges(llvm::ArrayRef<NtvRange> argRanges,
   setResultRange(getResult(), inferMult(argRanges));
 }
 
-void BitcastOp::inferTaffoRanges(llvm::ArrayRef<NtvRange> argRanges,
-                                 mlir::taffo::SetTaffoRangeFn setResultRange) {
-  setResultRange(getResult(), NtvRange(llvm::APFloat(0.0), llvm::APFloat(0.0)));
-}
-
 } // namespace mlir::taffo

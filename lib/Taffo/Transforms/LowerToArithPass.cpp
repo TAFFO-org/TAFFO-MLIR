@@ -382,14 +382,34 @@ public:
     }
   };
 
-  struct ConvertBitcast : public OpConversionPattern<BitcastOp> {
-    ConvertBitcast(mlir::MLIRContext *context)
-        : OpConversionPattern<BitcastOp>(context) {}
+  struct ConvertBitcastToReal : public OpConversionPattern<BitcastToRealOp> {
+    ConvertBitcastToReal(mlir::MLIRContext *context)
+        : OpConversionPattern<BitcastToRealOp>(context) {}
 
     using OpConversionPattern::OpConversionPattern;
 
     LogicalResult
-    matchAndRewrite(BitcastOp op, OpAdaptor adaptor,
+    matchAndRewrite(BitcastToRealOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      if (op.getFrom().getType() == op.getRes().getType()) {
+        op->emitOpError() << "bitcasting to same type";
+        return failure();
+      }
+
+      rewriter.replaceOp(op, adaptor.getFrom());
+      return success();
+    }
+  };
+
+  struct ConvertBitcastToInt : public OpConversionPattern<BitcastToIntOp> {
+    ConvertBitcastToInt(mlir::MLIRContext *context)
+        : OpConversionPattern<BitcastToIntOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(BitcastToIntOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
 
       if (op.getFrom().getType() == op.getRes().getType()) {
@@ -413,7 +433,7 @@ public:
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context);
     patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat,
-                 ConvertBitcast>(typeConverter, context);
+                 ConvertBitcastToInt, ConvertBitcastToReal>(typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();
