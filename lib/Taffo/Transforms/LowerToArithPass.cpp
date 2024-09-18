@@ -178,65 +178,78 @@ public:
     LogicalResult
     matchAndRewrite(MultOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
+  template <typename T1, typename T2>
+  static LogicalResult ConvertMultCommon(T1 op, T2 adaptor,
+                                         ConversionPatternRewriter &rewriter) {
 
-      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      const int targetWidth = 32;
+    RealType resType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
 
-      auto buildIntAttr = [targetWidth](Builder b,
-                                        int64_t value) -> IntegerAttr {
-        return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
-      };
+    const int targetWidth = resType.getBitwidth();
 
-      RealType resType =
-          ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
+    auto buildIntAttr = [targetWidth](Builder b, int64_t value) -> IntegerAttr {
+      return b.getIntegerAttr(b.getIntegerType(targetWidth), value);
+    };
 
-      int rhsExp = getExp(op.getLhs());
-      int lhsExp = getExp(op.getLhs());
-      Value rhs = adaptor.getRhs();
-      Value lhs = adaptor.getLhs();
+    Value ogLhs = op.getLhs();
+    Value ogRhs = op.getRhs();
+    int lhsExp = getExp(ogLhs);
+    int rhsExp = getExp(ogRhs);
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
 
-      // reconcile arguments of different signedness
-      if (resType.getSignd() &&
-          (getSignd(op.getRhs()) != getSignd(op.getLhs()))) {
+    // reconcile arguments of different signedness
+    if (resType.getSignd() && (getSignd(ogRhs) != getSignd(ogLhs))) {
 
-        if (!getSignd(op.getRhs())) {
-          rhsExp += 1;
-          rhs = b.create<arith::ShRSIOp>(
-                     rhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
-                    .getResult();
-        }
-
-        if (!getSignd(op.getRhs())) {
-          lhsExp += 1;
-          lhs = b.create<arith::ShRSIOp>(
-                     lhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
-                    .getResult();
-        }
+      if (!getSignd(ogLhs)) {
+        lhsExp += 1;
+        lhs = b.create<arith::ShRSIOp>(
+                   lhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                  .getResult();
       }
 
-      int implicitExp = rhsExp + lhsExp + resType.getBitwidth();
-      int expDiff = resType.getExponent() - implicitExp;
-
-      Value res = resType.getSignd()
-                      ? b.create<arith::MulSIExtendedOp>(lhs, rhs).getHigh()
-                      : b.create<arith::MulUIExtendedOp>(lhs, rhs).getHigh();
-
-      if (expDiff == 0) {
-        rewriter.replaceOp(op, res);
-        return success();
+      if (!getSignd(ogRhs)) {
+        rhsExp += 1;
+        rhs = b.create<arith::ShRSIOp>(
+                   rhs, b.create<arith::ConstantOp>(buildIntAttr(b, 1)))
+                  .getResult();
       }
+    }
 
-      arith::ConstantOp align_res =
-          b.create<arith::ConstantOp>(b.getIntegerAttr(
-              b.getIntegerType(resType.getBitwidth()), std::abs(expDiff)));
-      res = expDiff > 0
-                ? resType.getSignd()
-                      ? b.create<arith::ShRSIOp>(res, align_res).getResult()
-                      : b.create<arith::ShRUIOp>(res, align_res).getResult()
-                : b.create<arith::ShLIOp>(res, align_res).getResult();
+    int implicitExp = rhsExp + lhsExp + resType.getBitwidth();
+    int expDiff = resType.getExponent() - implicitExp;
+
+    Value res = resType.getSignd()
+                    ? b.create<arith::MulSIExtendedOp>(lhs, rhs).getHigh()
+                    : b.create<arith::MulUIExtendedOp>(lhs, rhs).getHigh();
+
+    if (expDiff == 0) {
       rewriter.replaceOp(op, res);
       return success();
+    }
+
+    arith::ConstantOp align_res = b.create<arith::ConstantOp>(b.getIntegerAttr(
+        b.getIntegerType(resType.getBitwidth()), std::abs(expDiff)));
+    res = expDiff > 0
+              ? resType.getSignd()
+                    ? b.create<arith::ShRSIOp>(res, align_res).getResult()
+                    : b.create<arith::ShRUIOp>(res, align_res).getResult()
+              : b.create<arith::ShLIOp>(res, align_res).getResult();
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+
+  struct ConvertMult : public OpConversionPattern<MultOp> {
+    ConvertMult(mlir::MLIRContext *context)
+        : OpConversionPattern<MultOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(MultOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+      return ConvertMultCommon<MultOp, OpAdaptor>(op, adaptor, rewriter);
     }
   };
 
