@@ -21,6 +21,13 @@ using namespace ::mlir::taffo;
 
 namespace mlir::taffo {
 
+LogicalResult CastToRealOp::verify() {
+  return getMin() <= getMax()
+             ? success()
+             : emitOpError(
+                   "Lower bound must be less than or equal to upper bound");
+}
+
 void CastToRealOp::inferTaffoRanges(
     llvm::ArrayRef<NtvRange> argRanges,
     mlir::taffo::SetTaffoRangeFn setResultRange) {

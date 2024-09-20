@@ -39,6 +39,8 @@ def Taffo_CastToRealOp : Taffo_Op<"cast2real",
 
     let assemblyFormat = "$from `,` $precision `,` $min `,` $max attr-dict `:`"
                                "type($from) `->`  type($res)";
+
+    let hasVerifier = 1;
 }
 
 def Taffo_CastToFloatOp : Taffo_Op<"cast2float",
