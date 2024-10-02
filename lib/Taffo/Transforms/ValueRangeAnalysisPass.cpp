@@ -45,7 +45,7 @@ public:
           solver.lookupState<TaffoRangeLattice>(op->getResult(0));
       if (!opRange || opRange->getValue().isUninitialized()) {
         op->emitOpError() << "Found op without a set range; have all variables"
-                             "been assigned a range?";
+                             " been assigned a range?";
         return mlir::WalkResult::interrupt();
       }
       NtvRange range = opRange->getValue().getValue();

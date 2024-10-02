@@ -1,16 +1,15 @@
 #ifndef TAFFO_TRANSFORMS_NTVRANGEANALYSIS_H
 #define TAFFO_TRANSFORMS_NTVRANGEANALYSIS_H
 
-#include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
 #include "Taffo/Transforms/TaffoRangeCommon.h"
+#include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 
 namespace mlir {
 namespace taffo {
 
 class TaffoValueRange {
 public:
-
   using NtvRange = mlir::taffo::NtvRange;
 
   static TaffoValueRange getMaxRange(Value value);
@@ -49,16 +48,14 @@ public:
 
   /// Print the value range.
   void print(raw_ostream &os) const {
-    os << "taffo range: ["
-       << getValue().first.convertToDouble() << ", "
-       << getValue().second.convertToDouble() << "]"; }
+    os << "taffo range: [" << getValue().first.convertToDouble() << ", "
+       << getValue().second.convertToDouble() << "]";
+  }
 
 private:
   /// The known integer value range.
   std::optional<NtvRange> value;
 };
-
-
 
 class TaffoRangeLattice : public dataflow::Lattice<TaffoValueRange> {
 public:
@@ -68,7 +65,6 @@ public:
   /// value of the SSA value.
   void onUpdate(DataFlowSolver *solver) const override;
 };
-
 
 class TaffoNtvRangeAnalysis
     : public dataflow::SparseForwardDataFlowAnalysis<TaffoRangeLattice> {
@@ -92,12 +88,15 @@ public:
   /// function calls `InferIntRangeInterface` to provide values for block
   /// arguments or tries to reduce the range on loop induction variables with
   /// known bounds.
-  void
-  visitNonControlFlowArguments(Operation *op, const RegionSuccessor &successor,
-                               ArrayRef<TaffoRangeLattice *> argLattices,
-                               unsigned firstIndex) override;
-};
+  void visitNonControlFlowArguments(Operation *op,
+                                    const RegionSuccessor &successor,
+                                    ArrayRef<TaffoRangeLattice *> argLattices,
+                                    unsigned firstIndex) override;
 
+private:
+  std::map<Operation*, int64_t> loops;
+  std::map<Operation*, int64_t> opVisits;
+};
 
 } // end namespace taffo
 } // end namespace mlir
