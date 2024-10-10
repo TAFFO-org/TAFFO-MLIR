@@ -37,6 +37,42 @@ public:
       signalPassFailure();
 
     auto result = module->walk([&](mlir::Operation *op) {
+      if (llvm::isa<mlir::scf::YieldOp>(op)) {
+
+        auto results = op->getOperands();
+
+        if (llvm::range_size(results) == 0) {
+          return mlir::WalkResult::advance();
+        }
+
+        if (llvm::range_size(results) > 1) {
+          op->emitError() << "Taffo currently doesn't support YieldOps with "
+                             "multiple arguments";
+          return mlir::WalkResult::interrupt();
+        }
+
+        RealType resType = llvm::dyn_cast<RealType>(results.front().getType());
+        if (!resType) {
+          return mlir::WalkResult::advance();
+        }
+
+        if (!llvm::dyn_cast<mlir::LoopLikeOpInterface>(op->getParentOp())) {
+          return mlir::WalkResult::advance();
+        }
+
+        // propagate to users
+        auto parent = op->getParentOp();
+        mlir::BlockArgument iterArg;
+        if (auto forOp = llvm::dyn_cast<mlir::scf::ForOp>(parent))
+          iterArg = forOp.getRegionIterArgs().front();
+        if (auto whileOp = llvm::dyn_cast<mlir::scf::WhileOp>(parent))
+          iterArg = whileOp.getRegionIterArgs().front();
+
+        iterArg.setType(resType);
+
+        //module->dump();
+      }
+
       if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
           llvm::isa<CastToFloatOp>(op)) {
         return mlir::WalkResult::advance();
@@ -76,7 +112,8 @@ public:
       max_exp = signd ? max_exp + 1 : max_exp;
 
       RealType type = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
-      int bitwidth = type.getBitwidth() ? type.getBitwidth() : maxSignificantDigits;
+      int bitwidth =
+          type.getBitwidth() ? type.getBitwidth() : maxSignificantDigits;
 
       // the left-most bit of an  integer has 2^(bitwidth-1) weight,
       // we want the leftmost bit of the fixed-point integer to have

@@ -94,6 +94,7 @@ public:
                                     unsigned firstIndex) override;
 
 private:
+  bool hitTripCount (Value v);
   std::map<Operation*, int64_t> loops;
   std::map<Operation*, int64_t> opVisits;
 };
