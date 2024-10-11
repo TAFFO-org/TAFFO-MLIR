@@ -45,6 +45,7 @@ public:
           return mlir::WalkResult::advance();
         }
 
+        // TODO: add support for loops with multiple loop carried results
         if (llvm::range_size(results) > 1) {
           op->emitError() << "Taffo currently doesn't support YieldOps with "
                              "multiple arguments";
@@ -56,21 +57,34 @@ public:
           return mlir::WalkResult::advance();
         }
 
-        if (!llvm::dyn_cast<mlir::LoopLikeOpInterface>(op->getParentOp())) {
+        mlir::LoopLikeOpInterface parent =
+            llvm::dyn_cast<mlir::LoopLikeOpInterface>(op->getParentOp());
+        if (!parent) {
           return mlir::WalkResult::advance();
         }
 
-        // propagate to users
-        auto parent = op->getParentOp();
-        mlir::BlockArgument iterArg;
-        if (auto forOp = llvm::dyn_cast<mlir::scf::ForOp>(parent))
-          iterArg = forOp.getRegionIterArgs().front();
-        if (auto whileOp = llvm::dyn_cast<mlir::scf::WhileOp>(parent))
-          iterArg = whileOp.getRegionIterArgs().front();
-
+        // propagate forward
+        mlir::BlockArgument iterArg = parent.getRegionIterArgs().front();
         iterArg.setType(resType);
+        parent->getResults().front().setType(resType);
+
+        // TODO: handle function arguments
+        // propagate backwards
+        auto init = parent.getInits().front();
+        if (llvm::range_size(init.getUsers()) > 1) {
+          mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
+          auto align = b.create<mlir::taffo::AlignOp>(
+              parent.getLoc(), resType, init);
+          init.replaceUsesWithIf(
+              align.getResult(),
+              [parent](mlir::OpOperand &U) { return U.getOwner() == parent; });
+        } else {
+          init.setType(resType);
+        }
 
         //module->dump();
+
+        return mlir::WalkResult::advance();
       }
 
       if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
