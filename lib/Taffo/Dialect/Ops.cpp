@@ -28,6 +28,23 @@ LogicalResult CastToRealOp::verify() {
                    "Lower bound must be less than or equal to upper bound");
 }
 
+LogicalResult AlignOp::verify() {
+  RealType source = getFrom().getType();
+  RealType target = getRes().getType();
+  auto getMSB = [](RealType t) { return t.getBitwidth() + t.getExponent(); };
+
+  if (getMSB(source) == getMSB(target)) {
+    emitOpError(
+        "Target MSB weight must be greater or equal to source MSB weight");
+    return failure();
+  }
+  if (target.getSignd() != source.getSignd()) {
+    emitOpError("Target sign must be equal to source sign");
+    return failure();
+  }
+  return success();
+}
+
 void CastToRealOp::inferTaffoRanges(
     llvm::ArrayRef<NtvRange> argRanges,
     mlir::taffo::SetTaffoRangeFn setResultRange) {

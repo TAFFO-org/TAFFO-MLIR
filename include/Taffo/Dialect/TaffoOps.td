@@ -128,6 +128,8 @@ def Taffo_AlignOp : Taffo_Op<"align"> {
 
     let assemblyFormat = "$from attr-dict `:`"
                                    "type($from) `->` type($res)";
+
+    let hasVerifier = 1;
 }
 
 #endif // TAFFO_DIALECT_TAFFOOPS_TD

@@ -429,6 +429,21 @@ public:
     }
   };
 
+  struct ConvertAlign : public OpConversionPattern<AlignOp> {
+    ConvertAlign(mlir::MLIRContext *context)
+        : OpConversionPattern<AlignOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(AlignOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      //TODO: Implement
+      return success();
+    }
+  };
+
   struct ConvertBitcastToInt : public OpConversionPattern<BitcastToIntOp> {
     ConvertBitcastToInt(mlir::MLIRContext *context)
         : OpConversionPattern<BitcastToIntOp>(context) {}
