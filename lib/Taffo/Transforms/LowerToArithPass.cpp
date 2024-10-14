@@ -250,8 +250,7 @@ public:
                     : b.create<arith::ShRUIOp>(res, align_res).getResult()
               : b.create<arith::ShLIOp>(res, align_res).getResult();
 
-    res =
-        b.create<arith::TruncIOp>(b.getIntegerType(ogWidth), res).getResult();
+    res = b.create<arith::TruncIOp>(b.getIntegerType(ogWidth), res).getResult();
     rewriter.replaceOp(op, res);
     return success();
   }
@@ -429,21 +428,6 @@ public:
     }
   };
 
-  struct ConvertAlign : public OpConversionPattern<AlignOp> {
-    ConvertAlign(mlir::MLIRContext *context)
-        : OpConversionPattern<AlignOp>(context) {}
-
-    using OpConversionPattern::OpConversionPattern;
-
-    LogicalResult
-    matchAndRewrite(AlignOp op, OpAdaptor adaptor,
-                    ConversionPatternRewriter &rewriter) const override {
-
-      //TODO: Implement
-      return success();
-    }
-  };
-
   struct ConvertBitcastToInt : public OpConversionPattern<BitcastToIntOp> {
     ConvertBitcastToInt(mlir::MLIRContext *context)
         : OpConversionPattern<BitcastToIntOp>(context) {}
@@ -459,6 +443,72 @@ public:
     }
   };
 
+  struct ConvertAlign : public OpConversionPattern<AlignOp> {
+    ConvertAlign(mlir::MLIRContext *context)
+        : OpConversionPattern<AlignOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(AlignOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+      RealType source = op.getFrom().getType();
+      RealType target = op.getRes().getType();
+
+      if (source.getBitwidth() > target.getBitwidth()) {
+        // shift first
+        int expDiff = target.getExponent() - source.getExponent();
+        arith::ConstantOp align_res = b.create<arith::ConstantOp>(
+            b.getIntegerAttr(b.getIntegerType(source.getBitwidth()), expDiff));
+        Value shifted =
+            source.getSignd()
+                ? b.create<arith::ShRSIOp>(adaptor.getFrom(), align_res)
+                      .getResult()
+                : b.create<arith::ShRUIOp>(adaptor.getFrom(), align_res)
+                      .getResult();
+        // then trunc
+        Value res = b.create<arith::TruncIOp>(
+            b.getIntegerType(target.getBitwidth()), shifted);
+        rewriter.replaceOp(op, res);
+      } else {
+        Value source_val = adaptor.getFrom();
+        // we need this check because ext to same datatype isn't a valid op
+        // (idk why they don't simply have a folder for this)
+        if (source.getBitwidth() < target.getBitwidth()) {
+          // ext first
+          source_val = source.getSignd()
+                           ? b.create<arith::ExtSIOp>(
+                                  b.getIntegerType(target.getBitwidth()),
+                                  adaptor.getFrom())
+                                 .getResult()
+                           : b.create<arith::ExtUIOp>(
+                                  b.getIntegerType(target.getBitwidth()),
+                                  adaptor.getFrom())
+                                 .getResult();
+        }
+
+        // then shift
+        int expDiff = target.getExponent() - source.getExponent();
+        arith::ConstantOp align_res =
+            b.create<arith::ConstantOp>(b.getIntegerAttr(
+                b.getIntegerType(target.getBitwidth()), std::abs(expDiff)));
+        Value res =
+            expDiff > 0
+                ? source.getSignd()
+                      ? b.create<arith::ShRSIOp>(source_val, align_res)
+                            .getResult()
+                      : b.create<arith::ShRUIOp>(source_val, align_res)
+                            .getResult()
+                : b.create<arith::ShLIOp>(source_val, align_res).getResult();
+        rewriter.replaceOp(op, res);
+      }
+      return success();
+    }
+  };
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     mlir::Operation *module = getOperation();
@@ -470,7 +520,8 @@ public:
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context);
     patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat,
-                 ConvertBitcastToInt, ConvertBitcastToReal>(typeConverter, context);
+                 ConvertBitcastToInt, ConvertBitcastToReal, ConvertAlign>(
+        typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();
