@@ -7,6 +7,7 @@
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "Taffo/Dialect/Types.h"
 #include "Taffo/Dialect/Ops.h"
 #include "Taffo/Dialect/Taffo.h.inc"
