@@ -58,42 +58,32 @@ static int64_t estimateTripCount(Operation *op) {
 }
 
 bool TaffoNtvRangeAnalysis::hitTripCount(Value v) {
-  LLVM_DEBUG(llvm::dbgs() << "checking trip count for " << v << "\n\n");
-
   auto arg = dyn_cast<BlockArgument>(v);
   if (arg)
     return true;
 
   auto defOp = v.getDefiningOp();
   if (!defOp) {
-    LLVM_DEBUG(llvm::dbgs() << "no defining op \n");
     return true;
   }
-  LLVM_DEBUG(llvm::dbgs() << "defining op: " << *defOp << "\n");
 
   auto parent = defOp->getParentOp();
   if (!parent) {
-    LLVM_DEBUG(llvm::dbgs() << "no parent op \n");
     return true;
   }
-  LLVM_DEBUG(llvm::dbgs() << "parent op: " << *parent << "\n");
 
   auto searchParent = this->loops.find(parent);
   // if parent is not in loop map there's no need to track visits
   if (searchParent == this->loops.end()) {
-    LLVM_DEBUG(llvm::dbgs() << "parent is not loop\n");
     return true;
   }
 
   auto searchOp = this->opVisits.find(defOp);
   // if the op is not in opVisits, it doesn't have a trip count
   if (searchOp == this->opVisits.end()) {
-    LLVM_DEBUG(llvm::dbgs() << "op not in op visits\n");
     return true;
   }
-  LLVM_DEBUG(llvm::dbgs() << "op trip count: " << searchOp->second << "\n");
-  LLVM_DEBUG(llvm::dbgs() << "parent trip count: " << searchParent->second
-                          << "\n");
+
   return searchOp->second >= searchParent->second;
 }
 
@@ -190,43 +180,6 @@ void TaffoNtvRangeAnalysis::visitOperation(
 
     ChangeResult changed = lattice->join(TaffoValueRange{attrs});
 
-    // TODO: propagate trip count estimation to VRA
-    // Catch loop results with loop variant bounds and conservatively make
-    // them [-inf, inf] so we don't circle around infinitely often (because
-    // the dataflow analysis in MLIR doesn't attempt to work out trip counts
-    // and often can't).
-
-    // bool isYieldedResult = llvm::any_of(v.getUsers(), [](Operation *op) {
-    //   return op->hasTrait<OpTrait::IsTerminator>();
-    // });
-    // if (isYieldedResult && !oldRange.isUninitialized() &&
-    //     !(lattice->getValue() == oldRange)) {
-    //   LLVM_DEBUG(llvm::dbgs()
-    //              << "Loop variant loop result detected in op " << *op <<
-    //              "\n");
-    //   // changed |= lattice->join(TaffoValueRange::getMaxRange(v));
-    //   //  ignore loops
-    //   Value *p_v = &v;
-    //   auto search = loopVisits.find(p_v);
-    //   if (search != loopVisits.end()) {
-    //     changed = mlir::ChangeResult::NoChange;
-    //   } else {
-    //     changed = mlir::ChangeResult::Change;
-    //     loopVisits.insert(std::pair(p_v, 0));
-    //   }
-    // }
-
-    // check trip count for ops in loop body
-    // if (auto parent = dyn_cast<LoopLikeOpInterface>(op->getParentOp())) {
-    //  LLVM_DEBUG(llvm::dbgs()
-    //                 << "found loop body op " << *op->getParentOp() << "\nwith
-    //                 "
-    //                 << loopVisits.find(parent)->second << " remaining iters"
-    //                 << "\n");
-    //  if (loopVisits.find(parent)->second == 0) {
-    //    changed = mlir::ChangeResult::NoChange;
-    //  }
-    //}
     propagateIfChanged(lattice, changed);
   };
 
@@ -236,14 +189,10 @@ void TaffoNtvRangeAnalysis::visitOperation(
 void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
     Operation *op, const RegionSuccessor &successor,
     ArrayRef<TaffoRangeLattice *> argLattices, unsigned firstIndex) {
-  LLVM_DEBUG(llvm::dbgs() << "visitNonControlFlowArguments call " << *op
-                          << "\n");
 
   if (dyn_cast<LoopLikeOpInterface>(op)) {
     auto search = loops.find(op);
     // new loop found
-    LLVM_DEBUG(llvm::dbgs() << "searching for loop of type"
-                            << op->getResultTypes().front() << "\n");
     if (search == loops.end() &&
         llvm::isa<taffo::RealType>(op->getResultTypes().front())) {
       loops.insert(std::make_pair(op, estimateTripCount(op)));
@@ -300,31 +249,6 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
 
       ChangeResult changed = lattice->join(TaffoValueRange{attrs});
 
-      // TODO: propagate trip count estimation to VRA
-      // Catch loop results with loop variant bounds and conservatively make
-      // them [-inf, inf] so we don't circle around infinitely often (because
-      // the dataflow analysis in MLIR doesn't attempt to work out trip counts
-      // and often can't).
-
-      // bool isYieldedResult = llvm::any_of(v.getUsers(), [](Operation *op) {
-      //   return op->hasTrait<OpTrait::IsTerminator>();
-      // });
-      // if (isYieldedResult && !oldRange.isUninitialized() &&
-      //     !(lattice->getValue() == oldRange)) {
-      //   LLVM_DEBUG(llvm::dbgs()
-      //              << "Loop variant loop result detected in op " << *op <<
-      //              "\n");
-      //   // changed |= lattice->join(TaffoValueRange::getMaxRange(v));
-      //   //  ignore loops
-      //   Value *p_v = &v;
-      //   auto search = loopVisits.find(p_v);
-      //   if (search != loopVisits.end()) {
-      //     changed = mlir::ChangeResult::NoChange;
-      //   } else {
-      //     changed = mlir::ChangeResult::Change;
-      //     loopVisits.insert(std::pair(p_v, 0));
-      //   }
-      // }
       propagateIfChanged(lattice, changed);
     };
 
