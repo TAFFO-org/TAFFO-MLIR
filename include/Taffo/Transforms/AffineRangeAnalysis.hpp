@@ -1,0 +1,96 @@
+#ifndef TAFFO_TRANSFORMS_AFFINERANGEANALYSIS_H
+#define TAFFO_TRANSFORMS_AFFINERANGEANALYSIS_H
+
+#include "libaffine.hpp"
+#include "mlir/Analysis/DataFlow/SparseAnalysis.h"
+#include <optional>
+
+namespace mlir {
+namespace taffo {
+class TaffoAffineValueRange {
+public:
+  static TaffoAffineValueRange getMaxRange(Value value);
+
+  TaffoAffineValueRange(std::optional<LibAffine::Var> value = std::nullopt)
+      : value(std::move(value)) {}
+
+  /// Whether the range is uninitialized. This happens when the state hasn't
+  /// been set during the analysis.
+  bool isUninitialized() const { return !value.has_value(); }
+
+  /// Get the known integer value range.
+  const LibAffine::Var &getValue() const {
+    assert(!isUninitialized());
+    return *value;
+  }
+
+  /// Compare two ranges.
+  bool operator==(const TaffoAffineValueRange &rhs) const {
+    return value == rhs.value;
+  }
+
+  /// Take the union of two ranges.
+  static TaffoAffineValueRange join(const TaffoAffineValueRange &lhs,
+                                    const TaffoAffineValueRange &rhs) {
+    if (lhs.isUninitialized())
+      return rhs;
+    if (rhs.isUninitialized())
+      return lhs;
+
+    return TaffoAffineValueRange{lhs.getValue().join(rhs.getValue())};
+  }
+
+  /// Print the value range.
+  void print(raw_ostream &os) const {
+    auto range = getValue().get_range();
+    os << "taffo range: [" << range.start.convertToDouble() << ", "
+       << range.end.convertToDouble() << "]";
+  }
+
+private:
+  /// The known integer value range.
+  std::optional<LibAffine::Var> value;
+};
+
+class TaffoAffineRangeLattice
+    : public dataflow::Lattice<TaffoAffineValueRange> {
+public:
+  using Lattice::Lattice;
+
+  /// If the range can be narrowed to a constant, update the constant
+  /// value of the SSA value.
+  void onUpdate(DataFlowSolver *solver) const override;
+};
+
+class TaffoAffineRangeAnalysis
+    : public dataflow::SparseForwardDataFlowAnalysis<TaffoAffineRangeLattice> {
+public:
+  using SparseForwardDataFlowAnalysis::SparseForwardDataFlowAnalysis;
+
+  /// At an entry point, we cannot reason about value ranges.
+  void setToEntryState(TaffoAffineRangeLattice *lattice) override {
+    propagateIfChanged(
+        lattice,
+        lattice->join(TaffoAffineValueRange::getMaxRange(lattice->getPoint())));
+  }
+
+  /// Visit an operation. Invoke the transfer function on each operation that
+  /// implements `InferTaffoRangeNtvInterface`.
+  void visitOperation(Operation *op,
+                      ArrayRef<const TaffoAffineRangeLattice *> operands,
+                      ArrayRef<TaffoAffineRangeLattice *> results) override;
+
+  /// Visit block arguments or operation results of an operation with region
+  /// control-flow for which values are not defined by region control-flow. This
+  /// function calls `InferIntRangeInterface` to provide values for block
+  /// arguments or tries to reduce the range on loop induction variables with
+  /// known bounds.
+  void
+  visitNonControlFlowArguments(Operation *op, const RegionSuccessor &successor,
+                               ArrayRef<TaffoAffineRangeLattice *> argLattices,
+                               unsigned firstIndex) override;
+};
+} // namespace taffo
+} // namespace mlir
+
+#endif // TAFFO_TRANSFORMS_AFFINERANGEANALYSIS_H

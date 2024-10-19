@@ -1,6 +1,7 @@
 add_mlir_dialect_library(MLIRTaffoTransforms
         TaffoRangeCommon.cpp
         NtvRangeAnalysis.cpp
+        AffineRangeAnalysis.cpp
         ValueRangeAnalysisPass.cpp
         LowerToArithPass.cpp
         DatatypeOptimizationPass.cpp
