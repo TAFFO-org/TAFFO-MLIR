@@ -8,6 +8,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
 #include "Taffo/Dialect/Ops.h"
 
 namespace mlir::taffo {
@@ -509,6 +511,65 @@ public:
     }
   };
 
+  struct ConvertLoopRegionTypes : public OpConversionPattern<scf::ForOp> {
+    ConvertLoopRegionTypes(mlir::MLIRContext *context)
+        : OpConversionPattern<scf::ForOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(scf::ForOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      op.emitWarning() << "start of applying";
+      ::llvm::outs() << "Applying pattern to" << *op << "\n";
+
+      Block *body = op.getBody();
+      llvm::outs() << "AAAAAAAAAAAAAAAAAAAAA\n";
+
+      Region &region = op->getRegion(0);
+      region.front().print(llvm::outs());
+
+      rewriter.startOpModification(op);
+      auto terminator = cast<scf::YieldOp>(body->getTerminator());
+      SmallVector<Value> terminatorRes;
+      rewriter.getRemappedValues(terminator->getOperands(), terminatorRes);
+      rewriter.modifyOpInPlace(terminator,
+                               [&] { terminator->setOperands(terminatorRes); });
+      llvm::outs() << "\nafter yield modifyInPlace\n\n";
+      op.dump();
+      // TypeConverter::SignatureConversion conversion(2);
+      // conversion.addInputs(0, {block.getArgumentTypes()[0]});
+      // conversion.addInputs(
+      //     1, {getTypeConverter()->convertType(block.getArgumentTypes()[1])});
+      //
+      //      //rewriter.applySignatureConversion(&region, conversion,
+      //                                             getTypeConverter());
+
+      rewriter.convertRegionTypes(&region, *getTypeConverter());
+      rewriter.finalizeOpModification(op);
+
+      llvm::outs() << "\nafter convertRegionTypes\n\n";
+      op.dump();
+
+      SmallVector<Value> results;
+      rewriter.getRemappedValues(op.getResults(), results);
+      rewriter.replaceOp(op, results);
+
+      SmallVector<Value> operands;
+      rewriter.getRemappedValues(op.getOperands(), operands);
+
+      rewriter.modifyOpInPlace(op, [&] { op->setOperands(operands); });
+
+      //{  ::llvm::outs() << "Fail\n";
+      //  return failure();
+      //}
+      //::llvm::outs() << "Success\n";
+      op.dump();
+      return success();
+    }
+  };
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     mlir::Operation *module = getOperation();
@@ -519,6 +580,7 @@ public:
 
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context);
+
     patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat,
                  ConvertBitcastToInt, ConvertBitcastToReal, ConvertAlign>(
         typeConverter, context);
@@ -526,6 +588,44 @@ public:
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();
     }
+    module->dump();
+    target.addDynamicallyLegalOp<scf::ForOp>(
+        [&](scf::ForOp op) { return typeConverter.isLegal(op); });
+
+    RewritePatternSet loopPatterns(context);
+    loopPatterns.add<ConvertLoopRegionTypes>(typeConverter, context);
+    if (failed(
+            applyPartialConversion(module, target, std::move(loopPatterns)))) {
+      signalPassFailure();
+    }
+
+    // auto result = module->walk([&](mlir::Operation *op) {
+    //   if (typeConverter.isLegal(op) || op->getRegions().empty())
+    //     return mlir::WalkResult::advance();
+    //
+    //  op->emitWarning() << "before conversion\n";
+    //  Region &region = op->getRegion(0);
+    //  Block *entry = &region.front();
+    //  // Convert the original entry arguments.
+    //  TypeConverter::SignatureConversion result(entry->getNumArguments());
+    //  if (failed(typeConverter.convertSignatureArgs(entry->getArgumentTypes(),
+    //                                            result))) {
+    //    return mlir::WalkResult::interrupt();;
+    //  }
+    //  op->emitWarning() << "after conversion\n";
+    //  return mlir::WalkResult::advance();
+    //});
+    // if (result.wasInterrupted())
+    //  signalPassFailure();
+    //
+    // module->dump();
+
+    // RewritePatternSet loopPatterns(context);
+    // loopPatterns.add<ConvertLoopRegionTypes>(typeConverter, context);
+    // module->emitWarning() << "before applying";
+    // if (!failed(applyPatternsAndFoldGreedily(module,
+    // std::move(loopPatterns))))
+    //   llvm::outs() << "we did it\n";
   }
 };
 } // namespace mlir
