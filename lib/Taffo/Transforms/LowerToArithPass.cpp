@@ -521,14 +521,9 @@ public:
     matchAndRewrite(scf::ForOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
 
-      op.emitWarning() << "start of applying";
-      ::llvm::outs() << "Applying pattern to" << *op << "\n";
-
       Block *body = op.getBody();
-      llvm::outs() << "AAAAAAAAAAAAAAAAAAAAA\n";
 
       Region &region = op->getRegion(0);
-      region.front().print(llvm::outs());
 
       rewriter.startOpModification(op);
       auto terminator = cast<scf::YieldOp>(body->getTerminator());
@@ -536,36 +531,24 @@ public:
       rewriter.getRemappedValues(terminator->getOperands(), terminatorRes);
       rewriter.modifyOpInPlace(terminator,
                                [&] { terminator->setOperands(terminatorRes); });
-      llvm::outs() << "\nafter yield modifyInPlace\n\n";
-      op.dump();
-      // TypeConverter::SignatureConversion conversion(2);
-      // conversion.addInputs(0, {block.getArgumentTypes()[0]});
-      // conversion.addInputs(
-      //     1, {getTypeConverter()->convertType(block.getArgumentTypes()[1])});
-      //
-      //      //rewriter.applySignatureConversion(&region, conversion,
-      //                                             getTypeConverter());
 
-      rewriter.convertRegionTypes(&region, *getTypeConverter());
       rewriter.finalizeOpModification(op);
 
-      llvm::outs() << "\nafter convertRegionTypes\n\n";
-      op.dump();
+      rewriter.convertRegionTypes(&region, *getTypeConverter());
 
-      SmallVector<Value> results;
-      rewriter.getRemappedValues(op.getResults(), results);
-      rewriter.replaceOp(op, results);
+      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      SmallVector<Value> operands;
-      rewriter.getRemappedValues(op.getOperands(), operands);
+      auto newOp =
+          b.create<scf::ForOp>(adaptor.getLowerBound(), adaptor.getUpperBound(),
+                               adaptor.getStep(), adaptor.getInitArgs());
 
-      rewriter.modifyOpInPlace(op, [&] { op->setOperands(operands); });
+      // We do not need the empty block created by rewriter.
+      rewriter.eraseBlock(newOp.getBody(0));
+      // Inline the type converted region from the original operation.
+      rewriter.inlineRegionBefore(op.getRegion(), newOp.getRegion(),
+                                  newOp.getRegion().end());
 
-      //{  ::llvm::outs() << "Fail\n";
-      //  return failure();
-      //}
-      //::llvm::outs() << "Success\n";
-      op.dump();
+      rewriter.replaceOp(op, newOp);
       return success();
     }
   };
