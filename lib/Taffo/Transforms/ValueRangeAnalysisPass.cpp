@@ -82,8 +82,6 @@ public:
           init.setType(resType);
         }
 
-        //module->dump();
-
         return mlir::WalkResult::advance();
       }
 
