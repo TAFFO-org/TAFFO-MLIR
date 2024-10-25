@@ -528,13 +528,15 @@ public:
       rewriter.startOpModification(op);
       auto terminator = cast<scf::YieldOp>(body->getTerminator());
       SmallVector<Value> terminatorRes;
-      rewriter.getRemappedValues(terminator->getOperands(), terminatorRes);
+      if(failed(rewriter.getRemappedValues(terminator->getOperands(), terminatorRes)))
+        return failure();
       rewriter.modifyOpInPlace(terminator,
                                [&] { terminator->setOperands(terminatorRes); });
 
       rewriter.finalizeOpModification(op);
 
-      rewriter.convertRegionTypes(&region, *getTypeConverter());
+      if(failed(rewriter.convertRegionTypes(&region, *getTypeConverter())))
+        return failure();
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
