@@ -74,12 +74,14 @@ void TaffoAffineRangeAnalysis::visitOperation(
       })) {
     return;
   }
-
+  LLVM_DEBUG(llvm::dbgs() << "[Affine VRA] Visiting operation: "
+                          << op->getName().getStringRef() << "\n");
   auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op);
   if (!inferrable)
     return setAllToEntryStates(results);
 
-  LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "[Affine VRA] Inferring aranges for " << *op
+                          << "\n");
   SmallVector<Var> argRanges(
       llvm::map_range(operands, [](const TaffoAffineRangeLattice *val) {
         return val->getValue().getValue();
@@ -93,7 +95,7 @@ void TaffoAffineRangeAnalysis::visitOperation(
     assert(llvm::is_contained(op->getResults(), result));
 
     LLVM_DEBUG(llvm::dbgs()
-               << "Inferred range: ["
+               << "[Affine VRA] Inferred range: ["
                << attrs.get_range().start.convertToDouble() << ", "
                << attrs.get_range().end.convertToDouble() << "]\n");
     TaffoAffineRangeLattice *lattice = results[result.getResultNumber()];
@@ -122,14 +124,15 @@ void TaffoAffineRangeAnalysis::visitOperation(
     propagateIfChanged(lattice, changed);
   };
 
-  inferrable.inferTaffoRanges(argRanges, joinCallback);
+  inferrable.inferTaffoAffineRanges(argRanges, joinCallback);
 }
 
 void TaffoAffineRangeAnalysis::visitNonControlFlowArguments(
     Operation *op, const RegionSuccessor &successor,
     ArrayRef<TaffoAffineRangeLattice *> argLattices, unsigned firstIndex) {
   if (auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op)) {
-    LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "[Affine VRA] Inferring ranges for " << *op << "\n");
     // If the lattice on any operand is unitialized, bail out.
     if (llvm::any_of(op->getOperands(), [&](Value value) {
           return getLatticeElementFor(op, value)->getValue().isUninitialized();
@@ -148,7 +151,7 @@ void TaffoAffineRangeAnalysis::visitNonControlFlowArguments(
         return;
 
       LLVM_DEBUG(llvm::dbgs()
-                 << "Inferred range: ["
+                 << "[Affine VRA] Inferred range: ["
                  << attrs.get_range().start.convertToDouble() << ", "
                  << attrs.get_range().end.convertToDouble() << "]\n");
       TaffoAffineRangeLattice *lattice = argLattices[arg.getArgNumber()];
@@ -178,7 +181,7 @@ void TaffoAffineRangeAnalysis::visitNonControlFlowArguments(
       propagateIfChanged(lattice, changed);
     };
 
-    inferrable.inferTaffoRanges(argRanges, joinCallback);
+    inferrable.inferTaffoAffineRanges(argRanges, joinCallback);
     return;
   }
 
