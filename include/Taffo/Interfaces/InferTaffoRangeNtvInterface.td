@@ -18,6 +18,14 @@ let methods = [
     "void", "inferTaffoRanges", (ins
     "::llvm::ArrayRef<std::pair<::llvm::APFloat,::llvm::APFloat>>":$argRanges,
     "::mlir::taffo::SetTaffoRangeFn":$setResultRanges)
+  >,
+  
+  InterfaceMethod<[{
+    Infer the bounds on the results of this op given the bounds on its arguments.
+    }],
+    "void", "inferTaffoAffineRanges", (ins
+    "::llvm::ArrayRef<LibAffine::Var>":$argRanges,
+    "::mlir::taffo::SetTaffoAffineRangeFn":$setResultRanges)
   >];
 }
 
