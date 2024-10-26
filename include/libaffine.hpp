@@ -227,21 +227,14 @@ public:
 };
 
 // Implementing the case where the scalar is on the left side of the operator
-Var operator+(const llvm::APFloat b, const Var var) { return var + b; }
+extern Var operator+(const llvm::APFloat b, const Var var);
 
-Var operator-(const llvm::APFloat b, const Var var) { return -var + b; }
+extern Var operator-(const llvm::APFloat b, const Var var);
 
-Var operator*(const llvm::APFloat b, const Var var) { return var * b; }
+extern Var operator*(const llvm::APFloat b, const Var var);
 
-bool operator==(const Var &a, const Var &b) {
-  if (a.c_value != b.c_value)
-    return false;
-  if (a.err_symbol_index != b.err_symbol_index)
-    return false;
-  return std::equal(a.err_symbol_coeffs.begin(), a.err_symbol_coeffs.end(),
-                    b.err_symbol_coeffs.begin());
-}
+extern bool operator==(const Var &a, const Var &b);
 
-bool operator!=(const Var &a, const Var &b) { return !(a == b); }
+extern bool operator!=(const Var &a, const Var &b);
 } // namespace LibAffine
 #endif // LIBAFFINE_HPP
