@@ -8,7 +8,7 @@
 #include "mlir/Pass/Pass.h"
 
 #include "Taffo/Dialect/Ops.h"
-
+#include "Taffo/Transforms/AffineRangeAnalysis.hpp"
 namespace mlir::taffo {
 #define GEN_PASS_DEF_VALUERANGEANALYSISPASS
 #include "Taffo/Transforms/Passes.h.inc"
@@ -33,6 +33,8 @@ public:
     // (check if it's necessary in the future)
     solver.load<mlir::dataflow::DeadCodeAnalysis>();
     solver.load<TaffoNtvRangeAnalysis>();
+    solver.load<TaffoAffineRangeAnalysis>();
+
     if (mlir::failed(solver.initializeAndRun(module)))
       signalPassFailure();
 
@@ -41,15 +43,39 @@ public:
           llvm::isa<CastToFloatOp>(op)) {
         return mlir::WalkResult::advance();
       }
-      const TaffoRangeLattice *opRange =
+      // Lookup the range of the operation in Ntv Lattice
+      const TaffoRangeLattice *opNtvRange =
           solver.lookupState<TaffoRangeLattice>(op->getResult(0));
-      if (!opRange || opRange->getValue().isUninitialized()) {
+      if (!opNtvRange || opNtvRange->getValue().isUninitialized()) {
         op->emitOpError() << "Found op without a set range; have all variables"
                              "been assigned a range?";
         return mlir::WalkResult::interrupt();
       }
-      NtvRange range = opRange->getValue().getValue();
-      bool signd = range.first.isNegative() || range.second.isNegative();
+
+      // Lookup the range of the operation in Affine Lattice
+      const TaffoAffineRangeLattice *opAffineRange =
+          solver.lookupState<TaffoAffineRangeLattice>(op->getResult(0));
+      if (!opAffineRange || opAffineRange->getValue().isUninitialized()) {
+        op->emitOpError() << "Found op without a set range; have all variables"
+                             "been assigned a range?";
+        return mlir::WalkResult::interrupt();
+      }
+
+      // Select the smallets range of the two based on their radius
+      TaffoValueRange::NtvRange ntvRange = opNtvRange->getValue().getValue();
+      auto affineRange = opAffineRange->getValue().getValue().get_range();
+      std::unique_ptr<LibAffine::Range> final_range;
+      if (affineRange.get_radius() <
+          (ntvRange.second - ntvRange.first) / (llvm::APFloat)2.0) {
+        final_range = std::make_unique<LibAffine::Range>(affineRange.start,
+                                                         affineRange.end);
+      } else {
+        final_range =
+            std::make_unique<LibAffine::Range>(ntvRange.first, ntvRange.second);
+      }
+
+      bool signd =
+          final_range->start.isNegative() || final_range->end.isNegative();
 
       // Hardcoding for f32, in the future it will need to work off of either
       // precision, number of significant digits, or a global parameter
@@ -65,8 +91,8 @@ public:
       // need to be changed for arbitrary precision scientific
       // computing (that being said, quad precision exponent is
       // 15 bits wide......)
-      int lf = getLog2(range.first);
-      int ls = getLog2(range.second);
+      int lf = getLog2(final_range->start);
+      int ls = getLog2(final_range->end);
 
       int max_exp = std::max(lf, ls);
 
@@ -76,7 +102,8 @@ public:
       max_exp = signd ? max_exp + 1 : max_exp;
 
       RealType type = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
-      int bitwidth = type.getBitwidth() ? type.getBitwidth() : maxSignificantDigits;
+      int bitwidth =
+          type.getBitwidth() ? type.getBitwidth() : maxSignificantDigits;
 
       // the left-most bit of an  integer has 2^(bitwidth-1) weight,
       // we want the leftmost bit of the fixed-point integer to have
