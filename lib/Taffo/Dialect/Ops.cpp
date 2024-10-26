@@ -15,6 +15,7 @@
 
 using namespace ::mlir;
 using namespace ::mlir::taffo;
+using namespace LibAffine;
 
 #define GET_OP_CLASSES
 #include "Taffo/Dialect/TaffoOps.cpp.inc"
@@ -42,6 +43,32 @@ void AddOp::inferTaffoRanges(llvm::ArrayRef<NtvRange> argRanges,
 
 void MultOp::inferTaffoRanges(llvm::ArrayRef<NtvRange> argRanges,
                               mlir::taffo::SetTaffoRangeFn setResultRange) {
+  setResultRange(getResult(), inferMult(argRanges));
+}
+
+void CastToRealOp::inferTaffoAffineRanges(
+    llvm::ArrayRef<Var> argRanges,
+    mlir::taffo::SetTaffoAffineRangeFn setResultRange) {
+  // Since CastToRealOp's ranges are inferred from its attributes (NOT its
+  // operands!), we can discard ArgRanges and use accessors methods instead
+  setResultRange(getResult(), Var(LibAffine::Range(getMin(), getMax())));
+}
+
+void CastToFloatOp::inferTaffoAffineRanges(
+    llvm::ArrayRef<Var> argRanges,
+    mlir::taffo::SetTaffoAffineRangeFn setResultRange) {
+  setResultRange(getResult(), inferCastToFloat(argRanges));
+}
+
+void AddOp::inferTaffoAffineRanges(
+    llvm::ArrayRef<Var> argRanges,
+    mlir::taffo::SetTaffoAffineRangeFn setResultRange) {
+  setResultRange(getResult(), inferAdd(argRanges));
+}
+
+void MultOp::inferTaffoAffineRanges(
+    llvm::ArrayRef<Var> argRanges,
+    mlir::taffo::SetTaffoAffineRangeFn setResultRange) {
   setResultRange(getResult(), inferMult(argRanges));
 }
 
