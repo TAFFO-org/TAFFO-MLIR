@@ -5,14 +5,18 @@
 #ifndef TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_H
 #define TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_H
 
+#include "libaffine.hpp"
 #include "mlir/IR/OpDefinition.h"
 #include "llvm/ADT/APFloat.h"
 
 namespace mlir::taffo {
 
-using SetTaffoRangeFn = function_ref<void(Value, const std::pair<::llvm::APFloat,::llvm::APFloat> &)>;
+using SetTaffoRangeFn = function_ref<void(
+    Value, const std::pair<::llvm::APFloat, ::llvm::APFloat> &)>;
 
-} // end namespace taffo
+using SetTaffoAffineRangeFn = function_ref<void(Value, const LibAffine::Var &)>;
+
+} // namespace mlir::taffo
 
 #include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h.inc"
 
