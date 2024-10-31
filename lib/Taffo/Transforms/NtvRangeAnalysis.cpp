@@ -102,7 +102,7 @@ void TaffoRangeLattice::onUpdate(DataFlowSolver *solver) const {
   if (!constant)
     return solver->propagateIfChanged(
         cv, cv->join(ConstantValue::getUnknownConstant()));
-
+/*
   Dialect *dialect;
   if (auto *parent = value.getDefiningOp())
     dialect = parent->getDialect();
@@ -110,7 +110,7 @@ void TaffoRangeLattice::onUpdate(DataFlowSolver *solver) const {
     dialect = value.getParentBlock()->getParentOp()->getDialect();
   solver->propagateIfChanged(
       cv, cv->join(ConstantValue(FloatAttr::get(value.getType(), *constant),
-                                 dialect)));
+                                 dialect)));*/
 }
 
 void TaffoNtvRangeAnalysis::visitOperation(

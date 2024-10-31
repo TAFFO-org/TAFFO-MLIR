@@ -7,7 +7,7 @@ namespace mlir::taffo {
 template <>
 // unused (for now?)
 NtvRange inferCast(ArrayRef<NtvRange> argRanges) {
-  assert(argRanges[0].first < argRanges[0].second &&
+  assert(argRanges[0].first <= argRanges[0].second &&
          "Upper bound and lower bound of this range are inverted");
 
   return argRanges[0];
@@ -15,7 +15,7 @@ NtvRange inferCast(ArrayRef<NtvRange> argRanges) {
 
 template <>
 NtvRange inferCastToFloat(ArrayRef<NtvRange> argRanges) {
-  assert(argRanges[0].first < argRanges[0].second &&
+  assert(argRanges[0].first <= argRanges[0].second &&
          "Upper bound and lower bound of this range are inverted");
 
   return argRanges[0];
@@ -23,9 +23,9 @@ NtvRange inferCastToFloat(ArrayRef<NtvRange> argRanges) {
 
 template <>
 NtvRange inferAdd(ArrayRef<NtvRange> argRanges) {
-  assert(argRanges[0].first < argRanges[0].second &&
+  assert(argRanges[0].first <= argRanges[0].second &&
          "Upper bound and lower bound of this range are inverted");
-  assert(argRanges[1].first < argRanges[1].second  &&
+  assert(argRanges[1].first <= argRanges[1].second  &&
          "Upper bound and lower bound of this range are inverted");
 
   APFloat min = argRanges[0].first + argRanges[1].first;
@@ -36,9 +36,9 @@ NtvRange inferAdd(ArrayRef<NtvRange> argRanges) {
 
 template <>
 NtvRange inferMult(ArrayRef<NtvRange> argRanges) {
-  assert(argRanges[0].first < argRanges[0].second &&
+  assert(argRanges[0].first <= argRanges[0].second &&
          "Upper bound and lower bound of this range are inverted");
-  assert(argRanges[1].first < argRanges[1].second  &&
+  assert(argRanges[1].first <= argRanges[1].second  &&
          "Upper bound and lower bound of this range are inverted");
 
   // unrolled outer product

@@ -22,10 +22,32 @@ using namespace ::mlir::taffo;
 namespace mlir::taffo {
 
 LogicalResult CastToRealOp::verify() {
-  return getMin() <= getMax()
-             ? success()
-             : emitOpError(
-                   "Lower bound must be less than or equal to upper bound");
+  if (getMin() > getMax()) {
+    emitOpError("Lower bound must be less than or equal to upper bound");
+    return failure();
+  }
+
+  if (getMin() == getMax() &&
+      !getFrom().getDefiningOp()->hasTrait<mlir::OpTrait::ConstantLike>()) {
+    emitOpError(
+        "Lower bound and upper bound coincide but $from is not a constant");
+    return failure();
+  }
+
+  // need support for other ConstantLike-s?
+  auto const_op =
+      ::llvm::dyn_cast<arith::ConstantOp>(getFrom().getDefiningOp());
+
+  auto from = ::llvm::dyn_cast<FloatAttr>(const_op.getValue()).getValue();
+
+  if (getMin() == getMax() &&
+      from.convertToDouble() != getMax().convertToDouble()) {
+    emitOpError(
+        "Lower bound and upper bound coincide but are not equal to $from");
+    return failure();
+  }
+
+  return success();
 }
 
 LogicalResult AlignOp::verify() {
@@ -33,7 +55,7 @@ LogicalResult AlignOp::verify() {
   RealType target = getRes().getType();
   auto getMSB = [](RealType t) { return t.getBitwidth() + t.getExponent(); };
 
-  if (getMSB(source) == getMSB(target)) {
+  if (getMSB(source) > getMSB(target)) {
     emitOpError(
         "Target MSB weight must be greater or equal to source MSB weight");
     return failure();
