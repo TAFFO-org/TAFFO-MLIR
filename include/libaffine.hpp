@@ -55,6 +55,16 @@ public:
     }
     return sum;
   }
+  std::string print() const {
+    std::ostringstream os;
+    os << "Central Value: " << c_value.convertToDouble() << "\n";
+    os << "Error Symbols and Coefficients:\n";
+    for (size_t i = 0; i < err_symbol_coeffs.size(); ++i) {
+      os << "Symbol " << err_symbol_index[i] << ": "
+         << err_symbol_coeffs[i].convertToDouble() << "\n";
+    }
+    return os.str();
+  }
 
   // define the join operation on two affine variables
   Var join(const Var &b) const {
