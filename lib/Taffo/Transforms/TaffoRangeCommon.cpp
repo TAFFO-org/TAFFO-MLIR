@@ -52,8 +52,22 @@ NtvRange inferMult(ArrayRef<NtvRange> argRanges) {
 }
 
 template <>
+NtvRange inferSub(ArrayRef<NtvRange> argRanges) {
+  assert(argRanges[0].first < argRanges[0].second &&
+         "Upper bound and lower bound of this range are inverted");
+  assert(argRanges[1].first < argRanges[1].second &&
+         "Upper bound and lower bound of this range are inverted");
+
+  // Calculate the range of the result of the subtraction
+  APFloat min = argRanges[0].first - argRanges[1].second;
+  APFloat max = argRanges[0].second - argRanges[1].first;
+
+  return std::minmax(min, max);
+}
+
+template <>
 Var inferCast(ArrayRef<Var> argRanges) {
-  assert(argRanges[0].get_range().end < argRanges[0].get_range().start &&
+  assert(argRanges[0].get_range().start < argRanges[0].get_range().end &&
          "Upper bound and lower bound of this range are inverted");
 
   return argRanges[0];
@@ -61,7 +75,7 @@ Var inferCast(ArrayRef<Var> argRanges) {
 
 template <>
 Var inferCastToFloat(ArrayRef<Var> argRanges) {
-  assert(argRanges[0].get_range().end < argRanges[0].get_range().start &&
+  assert(argRanges[0].get_range().start < argRanges[0].get_range().end &&
          "Upper bound and lower bound of this range are inverted");
 
   return argRanges[0];
@@ -69,9 +83,9 @@ Var inferCastToFloat(ArrayRef<Var> argRanges) {
 
 template <>
 Var inferAdd(ArrayRef<Var> argRanges) {
-  assert(argRanges[0].get_range().end < argRanges[0].get_range().start &&
+  assert(argRanges[0].get_range().start < argRanges[0].get_range().end &&
          "Upper bound and lower bound of this range are inverted");
-  assert(argRanges[1].get_range().end < argRanges[1].get_range().start &&
+  assert(argRanges[1].get_range().start < argRanges[1].get_range().end &&
          "Upper bound and lower bound of this range are inverted");
 
   return argRanges[0] + argRanges[1];
@@ -79,11 +93,21 @@ Var inferAdd(ArrayRef<Var> argRanges) {
 
 template <>
 Var inferMult(ArrayRef<Var> argRanges) {
-  assert(argRanges[0].get_range().end < argRanges[0].get_range().start &&
+  assert(argRanges[0].get_range().start < argRanges[0].get_range().end &&
          "Upper bound and lower bound of this range are inverted");
-  assert(argRanges[1].get_range().end < argRanges[1].get_range().start &&
+  assert(argRanges[1].get_range().start < argRanges[1].get_range().end &&
          "Upper bound and lower bound of this range are inverted");
 
   return argRanges[0] * argRanges[1];
+}
+
+template <>
+Var inferSub(ArrayRef<Var> argRanges) {
+  assert(argRanges[0].get_range().start < argRanges[0].get_range().end &&
+         "Upper bound and lower bound of this range are inverted");
+  assert(argRanges[1].get_range().start < argRanges[1].get_range().end &&
+         "Upper bound and lower bound of this range are inverted");
+
+  return argRanges[0] - argRanges[1];
 }
 } // namespace mlir::taffo
