@@ -36,6 +36,53 @@ TaffoAffineValueRange TaffoAffineValueRange::getMaxRange(Value value) {
                            APFloat::getInf(APFloat::IEEEdouble(), false))));
 }
 
+static int64_t estimateTripCount(Operation *op) {
+  const int64_t defaultTripCount = 1000;
+
+  auto forOp = dyn_cast<scf::ForOp>(op);
+
+  if (forOp) {
+    std::optional<int64_t> tripCount = constantTripCount(
+        forOp.getLowerBound(), forOp.getUpperBound(), forOp.getStep());
+    if (tripCount)
+      return tripCount.value();
+  }
+
+  op->emitWarning(
+      "Variable loop trip count detected, falling back to default trip count");
+  return defaultTripCount;
+}
+
+bool TaffoAffineRangeAnalysis::hitTripCount(Value v) {
+  auto arg = dyn_cast<BlockArgument>(v);
+  if (arg)
+    return true;
+
+  auto defOp = v.getDefiningOp();
+  if (!defOp) {
+    return true;
+  }
+
+  auto parent = defOp->getParentOp();
+  if (!parent) {
+    return true;
+  }
+
+  auto searchParent = this->loops.find(parent);
+  // if parent is not in loop map there's no need to track visits
+  if (searchParent == this->loops.end()) {
+    return true;
+  }
+
+  auto searchOp = this->opVisits.find(defOp);
+  // if the op is not in opVisits, it doesn't have a trip count
+  if (searchOp == this->opVisits.end()) {
+    return true;
+  }
+
+  return searchOp->second >= searchParent->second;
+}
+
 void TaffoAffineRangeLattice::onUpdate(DataFlowSolver *solver) const {
   Lattice::onUpdate(solver);
 
@@ -71,6 +118,18 @@ void TaffoAffineRangeAnalysis::visitOperation(
       })) {
     return;
   }
+
+  if (dyn_cast<LoopLikeOpInterface>(op)) {
+    auto search = loops.find(op);
+    // new loop found
+    if (search == loops.end()) {
+      loops.insert(std::make_pair(op, estimateTripCount(op)));
+      LLVM_DEBUG(llvm::dbgs()
+                 << "found new loop " << *op
+                 << "\nwith trip count: " << estimateTripCount(op) << "\n");
+    }
+  }
+
   auto inferrable = dyn_cast<InferTaffoRangeInterface>(op);
   if (!inferrable)
     return setAllToEntryStates(results);
@@ -81,6 +140,25 @@ void TaffoAffineRangeAnalysis::visitOperation(
       llvm::map_range(operands, [](const TaffoAffineRangeLattice *val) {
         return val->getValue().getValue();
       }));
+
+  auto parent = loops.find(op->getParentOp());
+  auto search = opVisits.find(op);
+  if (parent != loops.end()) {
+    if (search != opVisits.end()) {
+      search->second++;
+    } else {
+      opVisits.insert(std::make_pair(op, 0));
+    }
+  }
+
+  if (search != opVisits.end() &&
+      llvm::all_of(op->getOperands(),
+                   [&](Value v) { return hitTripCount(v); }) &&
+      llvm::all_of(op->getResults(),
+                   [&](Value v) { return hitTripCount(v); })) {
+    LLVM_DEBUG(llvm::dbgs() << "trip count hit for op " << *op << "\n");
+    return;
+  }
 
   auto joinCallback = [&](Value v, const Var &attrs) {
     // TODO handle function arguments
@@ -125,6 +203,19 @@ void TaffoAffineRangeAnalysis::visitOperation(
 void TaffoAffineRangeAnalysis::visitNonControlFlowArguments(
     Operation *op, const RegionSuccessor &successor,
     ArrayRef<TaffoAffineRangeLattice *> argLattices, unsigned firstIndex) {
+
+  if (dyn_cast<LoopLikeOpInterface>(op)) {
+    auto search = loops.find(op);
+    // new loop found
+    if (search == loops.end() &&
+        llvm::isa<taffo::RealType>(op->getResultTypes().front())) {
+      loops.insert(std::make_pair(op, estimateTripCount(op)));
+      LLVM_DEBUG(llvm::dbgs()
+                 << "found new loop " << *op
+                 << "\nwith trip count: " << estimateTripCount(op) << "\n");
+    }
+  }
+
   if (auto inferrable = dyn_cast<InferTaffoRangeInterface>(op)) {
     LLVM_DEBUG(llvm::dbgs()
                << "[Affine VRA] Inferring ranges for " << *op << "\n");
@@ -137,6 +228,25 @@ void TaffoAffineRangeAnalysis::visitNonControlFlowArguments(
         llvm::map_range(op->getOperands(), [&](Value value) {
           return getLatticeElementFor(op, value)->getValue().getValue();
         }));
+
+    auto parent = loops.find(op->getParentOp());
+    auto search = opVisits.find(op);
+    if (parent != loops.end()) {
+      if (search != opVisits.end()) {
+        search->second++;
+      } else {
+        opVisits.insert(std::make_pair(op, 0));
+      }
+    }
+
+    if (search != opVisits.end() &&
+        llvm::all_of(op->getOperands(),
+                     [&](Value v) { return hitTripCount(v); }) &&
+        llvm::all_of(op->getResults(),
+                     [&](Value v) { return hitTripCount(v); })) {
+      LLVM_DEBUG(llvm::dbgs() << "trip count hit for op " << *op << "\n");
+      return;
+    }
 
     auto joinCallback = [&](Value v, const Var &attrs) {
       auto arg = dyn_cast<BlockArgument>(v);

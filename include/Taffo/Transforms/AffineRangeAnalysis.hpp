@@ -93,6 +93,11 @@ public:
   visitNonControlFlowArguments(Operation *op, const RegionSuccessor &successor,
                                ArrayRef<TaffoAffineRangeLattice *> argLattices,
                                unsigned firstIndex) override;
+
+private:
+  bool hitTripCount(Value v);
+  std::map<Operation *, int64_t> loops;
+  std::map<Operation *, int64_t> opVisits;
 };
 } // namespace taffo
 } // namespace mlir
