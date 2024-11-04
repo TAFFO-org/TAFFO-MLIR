@@ -6,6 +6,8 @@
 #include "llvm/ADT/APFloat.h"
 #include <algorithm>
 #include <atomic>
+#include <iostream>
+#include <sstream>
 #include <vector>
 
 namespace LibAffine {
@@ -216,7 +218,7 @@ public:
 
     // Compute the approximation error in a new symbol
     result.err_symbol_index.push_back(inc_err_symbol_index());
-    result.err_symbol_coeffs.back() = abs_coeff_sum() * b.abs_coeff_sum();
+    result.err_symbol_coeffs.push_back(abs_coeff_sum() * b.abs_coeff_sum());
     return result;
   }
 
