@@ -93,9 +93,9 @@ public:
           err_symbol_coeffs[index_ida++], b.err_symbol_coeffs[index_idb++]));
     }
     // Calulate the approximation error in a new symbol
-    result.err_symbol_index.push_back(inc_err_symbol_index());
-    result.err_symbol_coeffs.push_back(llvm::abs(c_value - b.c_value) /
-                                       (llvm::APFloat)2.0);
+    // result.err_symbol_index.push_back(inc_err_symbol_index());
+    // result.err_symbol_coeffs.push_back(llvm::abs(c_value - b.c_value) /
+    //                                    (llvm::APFloat)2.0);
     return result;
   }
 
