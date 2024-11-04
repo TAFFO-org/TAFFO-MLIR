@@ -573,7 +573,6 @@ public:
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();
     }
-    module->dump();
     target.addDynamicallyLegalOp<scf::ForOp>(
         [&](scf::ForOp op) { return typeConverter.isLegal(op); });
 
@@ -583,34 +582,6 @@ public:
             applyPartialConversion(module, target, std::move(loopPatterns)))) {
       signalPassFailure();
     }
-
-    // auto result = module->walk([&](mlir::Operation *op) {
-    //   if (typeConverter.isLegal(op) || op->getRegions().empty())
-    //     return mlir::WalkResult::advance();
-    //
-    //  op->emitWarning() << "before conversion\n";
-    //  Region &region = op->getRegion(0);
-    //  Block *entry = &region.front();
-    //  // Convert the original entry arguments.
-    //  TypeConverter::SignatureConversion result(entry->getNumArguments());
-    //  if (failed(typeConverter.convertSignatureArgs(entry->getArgumentTypes(),
-    //                                            result))) {
-    //    return mlir::WalkResult::interrupt();;
-    //  }
-    //  op->emitWarning() << "after conversion\n";
-    //  return mlir::WalkResult::advance();
-    //});
-    // if (result.wasInterrupted())
-    //  signalPassFailure();
-    //
-    // module->dump();
-
-    // RewritePatternSet loopPatterns(context);
-    // loopPatterns.add<ConvertLoopRegionTypes>(typeConverter, context);
-    // module->emitWarning() << "before applying";
-    // if (!failed(applyPatternsAndFoldGreedily(module,
-    // std::move(loopPatterns))))
-    //   llvm::outs() << "we did it\n";
   }
 };
 } // namespace mlir
