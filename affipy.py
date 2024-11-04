@@ -2,15 +2,10 @@ from affapy.aa import Affine
 
 # Init
 x = Affine([-1, 2.5])
-y = Affine([-1, 2.5])
+y = Affine([0, 1])
 
 # Get the interval
-z = x * -1
-print((x - y).interval)
-
-# Basic operations
-x + y
-x + 5
-x - y
-x - 5
--x
+res = 3 * x + y
+res = res - x
+res1 = res * x
+print(res1.interval)
