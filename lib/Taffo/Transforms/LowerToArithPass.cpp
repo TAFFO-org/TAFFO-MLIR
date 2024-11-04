@@ -8,6 +8,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
 #include "Taffo/Dialect/Ops.h"
 
 namespace mlir::taffo {
@@ -250,8 +252,7 @@ public:
                     : b.create<arith::ShRUIOp>(res, align_res).getResult()
               : b.create<arith::ShLIOp>(res, align_res).getResult();
 
-    res =
-        b.create<arith::TruncIOp>(b.getIntegerType(ogWidth), res).getResult();
+    res = b.create<arith::TruncIOp>(b.getIntegerType(ogWidth), res).getResult();
     rewriter.replaceOp(op, res);
     return success();
   }
@@ -444,6 +445,116 @@ public:
     }
   };
 
+  struct ConvertAlign : public OpConversionPattern<AlignOp> {
+    ConvertAlign(mlir::MLIRContext *context)
+        : OpConversionPattern<AlignOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(AlignOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+      RealType source = op.getFrom().getType();
+      RealType target = op.getRes().getType();
+
+      if (source.getBitwidth() > target.getBitwidth()) {
+        // shift first
+        int expDiff = target.getExponent() - source.getExponent();
+        arith::ConstantOp align_res = b.create<arith::ConstantOp>(
+            b.getIntegerAttr(b.getIntegerType(source.getBitwidth()), expDiff));
+        Value shifted =
+            source.getSignd()
+                ? b.create<arith::ShRSIOp>(adaptor.getFrom(), align_res)
+                      .getResult()
+                : b.create<arith::ShRUIOp>(adaptor.getFrom(), align_res)
+                      .getResult();
+        // then trunc
+        Value res = b.create<arith::TruncIOp>(
+            b.getIntegerType(target.getBitwidth()), shifted);
+        rewriter.replaceOp(op, res);
+      } else {
+        Value source_val = adaptor.getFrom();
+        // we need this check because ext to same datatype isn't a valid op
+        // (idk why they don't simply have a folder for this)
+        if (source.getBitwidth() < target.getBitwidth()) {
+          // ext first
+          source_val = source.getSignd()
+                           ? b.create<arith::ExtSIOp>(
+                                  b.getIntegerType(target.getBitwidth()),
+                                  adaptor.getFrom())
+                                 .getResult()
+                           : b.create<arith::ExtUIOp>(
+                                  b.getIntegerType(target.getBitwidth()),
+                                  adaptor.getFrom())
+                                 .getResult();
+        }
+
+        // then shift
+        int expDiff = target.getExponent() - source.getExponent();
+        arith::ConstantOp align_res =
+            b.create<arith::ConstantOp>(b.getIntegerAttr(
+                b.getIntegerType(target.getBitwidth()), std::abs(expDiff)));
+        Value res =
+            expDiff > 0
+                ? source.getSignd()
+                      ? b.create<arith::ShRSIOp>(source_val, align_res)
+                            .getResult()
+                      : b.create<arith::ShRUIOp>(source_val, align_res)
+                            .getResult()
+                : b.create<arith::ShLIOp>(source_val, align_res).getResult();
+        rewriter.replaceOp(op, res);
+      }
+      return success();
+    }
+  };
+
+  struct ConvertLoopRegionTypes : public OpConversionPattern<scf::ForOp> {
+    ConvertLoopRegionTypes(mlir::MLIRContext *context)
+        : OpConversionPattern<scf::ForOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(scf::ForOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      Block *body = op.getBody();
+
+      Region &region = op->getRegion(0);
+
+      rewriter.startOpModification(op);
+      auto terminator = cast<scf::YieldOp>(body->getTerminator());
+      SmallVector<Value> terminatorRes;
+      if(failed(rewriter.getRemappedValues(terminator->getOperands(), terminatorRes)))
+        return failure();
+      rewriter.modifyOpInPlace(terminator,
+                               [&] { terminator->setOperands(terminatorRes); });
+
+      rewriter.finalizeOpModification(op);
+
+      if(failed(rewriter.convertRegionTypes(&region, *getTypeConverter())))
+        return failure();
+
+      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+      auto newOp =
+          b.create<scf::ForOp>(adaptor.getLowerBound(), adaptor.getUpperBound(),
+                               adaptor.getStep(), adaptor.getInitArgs());
+
+      // We do not need the empty block created by rewriter.
+      rewriter.eraseBlock(newOp.getBody(0));
+      // Inline the type converted region from the original operation.
+      rewriter.inlineRegionBefore(op.getRegion(), newOp.getRegion(),
+                                  newOp.getRegion().end());
+
+      rewriter.replaceOp(op, newOp);
+      return success();
+    }
+  };
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     mlir::Operation *module = getOperation();
@@ -454,12 +565,52 @@ public:
 
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context);
+
     patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat,
-                 ConvertBitcastToInt, ConvertBitcastToReal>(typeConverter, context);
+                 ConvertBitcastToInt, ConvertBitcastToReal, ConvertAlign>(
+        typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();
     }
+    module->dump();
+    target.addDynamicallyLegalOp<scf::ForOp>(
+        [&](scf::ForOp op) { return typeConverter.isLegal(op); });
+
+    RewritePatternSet loopPatterns(context);
+    loopPatterns.add<ConvertLoopRegionTypes>(typeConverter, context);
+    if (failed(
+            applyPartialConversion(module, target, std::move(loopPatterns)))) {
+      signalPassFailure();
+    }
+
+    // auto result = module->walk([&](mlir::Operation *op) {
+    //   if (typeConverter.isLegal(op) || op->getRegions().empty())
+    //     return mlir::WalkResult::advance();
+    //
+    //  op->emitWarning() << "before conversion\n";
+    //  Region &region = op->getRegion(0);
+    //  Block *entry = &region.front();
+    //  // Convert the original entry arguments.
+    //  TypeConverter::SignatureConversion result(entry->getNumArguments());
+    //  if (failed(typeConverter.convertSignatureArgs(entry->getArgumentTypes(),
+    //                                            result))) {
+    //    return mlir::WalkResult::interrupt();;
+    //  }
+    //  op->emitWarning() << "after conversion\n";
+    //  return mlir::WalkResult::advance();
+    //});
+    // if (result.wasInterrupted())
+    //  signalPassFailure();
+    //
+    // module->dump();
+
+    // RewritePatternSet loopPatterns(context);
+    // loopPatterns.add<ConvertLoopRegionTypes>(typeConverter, context);
+    // module->emitWarning() << "before applying";
+    // if (!failed(applyPatternsAndFoldGreedily(module,
+    // std::move(loopPatterns))))
+    //   llvm::outs() << "we did it\n";
   }
 };
 } // namespace mlir

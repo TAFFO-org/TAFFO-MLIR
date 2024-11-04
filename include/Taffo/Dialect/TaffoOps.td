@@ -39,6 +39,8 @@ def Taffo_CastToRealOp : Taffo_Op<"cast2real",
 
     let assemblyFormat = "$from `,` $precision `,` $min `,` $max attr-dict `:`"
                                "type($from) `->`  type($res)";
+
+    let hasVerifier = 1;
 }
 
 def Taffo_CastToFloatOp : Taffo_Op<"cast2float",
@@ -123,6 +125,25 @@ def Taffo_SubOp : Taffo_Op<"sub",
 
     let assemblyFormat = "$lhs `,` $rhs attr-dict `:`"
                          "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
+}
+
+def Taffo_AlignOp : Taffo_Op<"align"> {
+    let summary = "aligns TaffoReal types by shifting the underlying integer";
+
+    let description = [{
+        This op is only used to decouple OpResults that have multiple users.
+        In particular, it's inserted by VRA when loop variant results require it.
+        Additionally, it may change the bitwidth of its operand, but this feature
+        is not currently used.
+    }];
+
+    let arguments = (ins TaffoReal:$from);
+    let results = (outs TaffoReal:$res);
+
+    let assemblyFormat = "$from attr-dict `:`"
+                                   "type($from) `->` type($res)";
+
+    let hasVerifier = 1;
 }
 
 #endif // TAFFO_DIALECT_TAFFOOPS_TD

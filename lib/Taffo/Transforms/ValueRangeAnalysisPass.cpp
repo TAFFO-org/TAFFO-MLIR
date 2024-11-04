@@ -39,6 +39,54 @@ public:
       signalPassFailure();
 
     auto result = module->walk([&](mlir::Operation *op) {
+      if (llvm::isa<mlir::scf::YieldOp>(op)) {
+
+        auto results = op->getOperands();
+
+        if (llvm::range_size(results) == 0) {
+          return mlir::WalkResult::advance();
+        }
+
+        // TODO: add support for loops with multiple loop carried results
+        if (llvm::range_size(results) > 1) {
+          op->emitError() << "Taffo currently doesn't support YieldOps with "
+                             "multiple arguments";
+          return mlir::WalkResult::interrupt();
+        }
+
+        RealType resType = llvm::dyn_cast<RealType>(results.front().getType());
+        if (!resType) {
+          return mlir::WalkResult::advance();
+        }
+
+        mlir::LoopLikeOpInterface parent =
+            llvm::dyn_cast<mlir::LoopLikeOpInterface>(op->getParentOp());
+        if (!parent) {
+          return mlir::WalkResult::advance();
+        }
+
+        // propagate forward
+        mlir::BlockArgument iterArg = parent.getRegionIterArgs().front();
+        iterArg.setType(resType);
+        parent->getResults().front().setType(resType);
+
+        // TODO: handle function arguments
+        // propagate backwards
+        auto init = parent.getInits().front();
+        if (llvm::range_size(init.getUsers()) > 1) {
+          mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
+          auto align = b.create<mlir::taffo::AlignOp>(
+              parent.getLoc(), resType, init);
+          init.replaceUsesWithIf(
+              align.getResult(),
+              [parent](mlir::OpOperand &U) { return U.getOwner() == parent; });
+        } else {
+          init.setType(resType);
+        }
+
+        return mlir::WalkResult::advance();
+      }
+
       if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
           llvm::isa<CastToFloatOp>(op)) {
         return mlir::WalkResult::advance();
@@ -48,7 +96,7 @@ public:
           solver.lookupState<TaffoRangeLattice>(op->getResult(0));
       if (!opNtvRange || opNtvRange->getValue().isUninitialized()) {
         op->emitOpError() << "Found op without a set range; have all variables"
-                             "been assigned a range?";
+                             " been assigned a range?";
         return mlir::WalkResult::interrupt();
       }
 

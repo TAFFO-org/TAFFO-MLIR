@@ -22,6 +22,52 @@ using namespace LibAffine;
 
 namespace mlir::taffo {
 
+LogicalResult CastToRealOp::verify() {
+  if (getMin() > getMax()) {
+    emitOpError("Lower bound must be less than or equal to upper bound");
+    return failure();
+  }
+
+  if (getMin() == getMax() &&
+      !getFrom().getDefiningOp()->hasTrait<mlir::OpTrait::ConstantLike>()) {
+    emitOpError(
+        "Lower bound and upper bound coincide but $from is not a constant");
+    return failure();
+  }
+
+  // need support for other ConstantLike-s?
+  auto const_op =
+      ::llvm::dyn_cast<arith::ConstantOp>(getFrom().getDefiningOp());
+
+  auto from = ::llvm::dyn_cast<FloatAttr>(const_op.getValue()).getValue();
+
+  if (getMin() == getMax() &&
+      from.convertToDouble() != getMax().convertToDouble()) {
+    emitOpError(
+        "Lower bound and upper bound coincide but are not equal to $from");
+    return failure();
+  }
+
+  return success();
+}
+
+LogicalResult AlignOp::verify() {
+  RealType source = getFrom().getType();
+  RealType target = getRes().getType();
+  auto getMSB = [](RealType t) { return t.getBitwidth() + t.getExponent(); };
+
+  if (getMSB(source) > getMSB(target)) {
+    emitOpError(
+        "Target MSB weight must be greater or equal to source MSB weight");
+    return failure();
+  }
+  if (target.getSignd() != source.getSignd()) {
+    emitOpError("Target sign must be equal to source sign");
+    return failure();
+  }
+  return success();
+}
+
 void CastToRealOp::inferTaffoRanges(
     llvm::ArrayRef<NtvRange> argRanges,
     mlir::taffo::SetTaffoRangeFn setResultRange) {

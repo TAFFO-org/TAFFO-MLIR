@@ -27,20 +27,31 @@ public:
     const int targetBitwidth = 32;
 
     auto result = module->walk([&](mlir::Operation *op) {
-      if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
-          llvm::isa<CastToFloatOp>(op)) {
+      if (llvm::none_of(op->getResultTypes(),
+                        [](Type t) { return llvm::isa<RealType>(t); })) {
         return mlir::WalkResult::advance();
       }
 
-      RealType oldType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
+      auto adaptToBitwidth = [targetBitwidth](Value v) {
+        RealType oldType = ::llvm::dyn_cast<RealType>(v.getType());
 
-      // TODO: add NaN/Inf check on exp
-      int bitwidthDiff = targetBitwidth - oldType.getBitwidth();
-      int newExp = oldType.getExponent() - bitwidthDiff;
-      int newBitwidth = targetBitwidth;
+        // TODO: add NaN/Inf check on exp
+        int bitwidthDiff = targetBitwidth - oldType.getBitwidth();
+        int newExp = oldType.getExponent() - bitwidthDiff;
+        int newBitwidth = targetBitwidth;
 
-      op->getResult(0).setType(RealType::get(
-          op->getContext(), oldType.getSignd(), newExp, newBitwidth));
+        v.setType(RealType::get(v.getContext(), oldType.getSignd(), newExp,
+                                newBitwidth));
+      };
+
+      auto loop = llvm::dyn_cast<mlir::LoopLikeOpInterface>(op);
+      if (loop) {
+        adaptToBitwidth(loop.getRegionIterArgs().front());
+        adaptToBitwidth(loop.getInits().front());
+        adaptToBitwidth(loop->getResults().front());
+      } else {
+        adaptToBitwidth(op->getResult(0));
+      }
 
       return mlir::WalkResult::advance();
     });
@@ -54,37 +65,57 @@ public:
     // the same bitwidth, as this has relevance wrt to exponent semantics and
     // fixed-point alignment
     auto result2 = module->walk([&](mlir::Operation *op) {
-      if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
-          llvm::isa<CastToFloatOp>(op)) {
+      if (llvm::none_of(op->getResultTypes(),
+                        [](Type t) { return llvm::isa<RealType>(t); })) {
         return mlir::WalkResult::advance();
       }
 
-      bool possibleOverflow =
-          ::llvm::any_of(op->getUsers(), [op](Operation *addOp) {
-            if (!llvm::isa<taffo::AddOp>(addOp)) {
-              return false;
-            }
-            int childExp =
-                ::llvm::dyn_cast<RealType>(addOp->getResult(0).getType())
-                    .getExponent();
+      auto possibleOverflow = [op](Operation *addOp) {
+        if (!llvm::isa<taffo::AddOp>(addOp)) {
+          return false;
+        }
 
-            int parentExp =
-                ::llvm::dyn_cast<RealType>(op->getResult(0).getType())
-                    .getExponent();
+        auto getExp = [](Value v) {
+          return ::llvm::dyn_cast<RealType>(v.getType()).getExponent();
+        };
 
-            return childExp == (parentExp + 1);
-          });
+        SmallVector<int> operandExps;
+        for (auto opr : addOp->getOperands()) {
+          operandExps.push_back(getExp(opr));
+        }
 
-      if (possibleOverflow) {
-        RealType oldType =
-            ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
+        int maxOperandExp =
+            *std::max_element(operandExps.begin(), operandExps.end());
 
-        RealType newType =
-            RealType::get(op->getContext(), oldType.getSignd(),
-                          oldType.getExponent() + 1, oldType.getBitwidth());
+        int resExp = getExp(addOp->getResult(0));
 
-        op->getResult(0).setType(newType);
+        return resExp == (maxOperandExp + 1) &&
+               getExp(op->getResult(0)) == maxOperandExp;
+      };
+
+      auto usersWithOF =
+          llvm::make_filter_range(op->getUsers(), possibleOverflow);
+
+      if (usersWithOF.empty()) {
+        return mlir::WalkResult::advance();
       }
+
+      RealType oldType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
+
+      RealType newType =
+          RealType::get(op->getContext(), oldType.getSignd(),
+                        oldType.getExponent() + 1, oldType.getBitwidth());
+      mlir::OpBuilder b = mlir::OpBuilder(op, nullptr);
+      b.setInsertionPointAfter(op);
+      auto align = b.create<mlir::taffo::AlignOp>(op->getLoc(), newType,
+                                                  op->getResult(0));
+
+      op->getResult(0).replaceUsesWithIf(
+          align.getResult(), [usersWithOF](mlir::OpOperand &U) {
+            return llvm::any_of(usersWithOF, [&](Operation *user) {
+              return user == U.getOwner();
+            });
+          });
 
       return mlir::WalkResult::advance();
     });
