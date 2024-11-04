@@ -10,9 +10,9 @@
 #include "llvm/ADT/ScopeExit.h"
 
 #include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+#include "Taffo/Transforms/AffineRangeAnalysis.hpp"
 #include "Taffo/Transforms/TaffoRangeCommon.h"
 #include "llvm/ADT/APFloat.h"
-
 using namespace ::mlir;
 using namespace ::mlir::taffo;
 using namespace LibAffine;
@@ -46,6 +46,11 @@ void MultOp::inferTaffoRanges(llvm::ArrayRef<NtvRange> argRanges,
   setResultRange(getResult(), inferMult(argRanges));
 }
 
+void SubOp::inferTaffoRanges(llvm::ArrayRef<NtvRange> argRanges,
+                             mlir::taffo::SetTaffoRangeFn setResultRange) {
+  setResultRange(getResult(), inferSub(argRanges));
+}
+
 void CastToRealOp::inferTaffoAffineRanges(
     llvm::ArrayRef<Var> argRanges,
     mlir::taffo::SetTaffoAffineRangeFn setResultRange) {
@@ -70,6 +75,12 @@ void MultOp::inferTaffoAffineRanges(
     llvm::ArrayRef<Var> argRanges,
     mlir::taffo::SetTaffoAffineRangeFn setResultRange) {
   setResultRange(getResult(), inferMult(argRanges));
+}
+
+void SubOp::inferTaffoAffineRanges(
+    llvm::ArrayRef<Var> argRanges,
+    mlir::taffo::SetTaffoAffineRangeFn setResultRange) {
+  setResultRange(getResult(), inferSub(argRanges));
 }
 
 } // namespace mlir::taffo

@@ -111,4 +111,18 @@ def Taffo_MultOp : Taffo_Op<"mult",
                          "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
 }
 
+def Taffo_SubOp : Taffo_Op<"sub",
+    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    let summary = "taffo sub summary";
+    let description = [{
+        taffo sub description
+    }];
+
+    let arguments = (ins TaffoReal:$lhs, TaffoReal:$rhs);
+    let results = (outs TaffoReal:$res);
+
+    let assemblyFormat = "$lhs `,` $rhs attr-dict `:`"
+                         "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
+}
+
 #endif // TAFFO_DIALECT_TAFFOOPS_TD

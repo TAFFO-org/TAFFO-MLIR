@@ -1,8 +1,8 @@
 #ifndef TAFFO_TRANSFORMS_TAFFORANGECOMMON_H
 #define TAFFO_TRANSFORMS_TAFFORANGECOMMON_H
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/ArrayRef.h"
 
 namespace mlir::taffo {
 
@@ -22,6 +22,8 @@ T inferAdd(llvm::ArrayRef<T> argRanges);
 template <typename T>
 T inferMult(llvm::ArrayRef<T> argRanges);
 
-} // namespace taffo
+template <typename T>
+T inferSub(llvm::ArrayRef<T> argRanges);
+} // namespace mlir::taffo
 
 #endif // TAFFO_TRANSFORMS_TAFFORANGECOMMON_H
