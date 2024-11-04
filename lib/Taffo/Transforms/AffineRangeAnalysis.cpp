@@ -17,13 +17,10 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/Debug.h"
 #include <cassert>
 #include <llvm/ADT/APFloat.h>
 #include <optional>
 #include <utility>
-
-#define DEBUG_TYPE "value-range-analysis"
 
 using namespace mlir;
 using namespace mlir::dataflow;
@@ -74,8 +71,6 @@ void TaffoAffineRangeAnalysis::visitOperation(
       })) {
     return;
   }
-  LLVM_DEBUG(llvm::dbgs() << "[Affine VRA] Visiting operation: "
-                          << op->getName().getStringRef() << "\n");
   auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op);
   if (!inferrable)
     return setAllToEntryStates(results);

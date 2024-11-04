@@ -3,7 +3,10 @@
 
 #include "libaffine.hpp"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
+#include "llvm/Support/Debug.h"
 #include <optional>
+
+#define DEBUG_TYPE "value-range-analysis"
 
 namespace mlir {
 namespace taffo {
@@ -11,8 +14,8 @@ class TaffoAffineValueRange {
 public:
   static TaffoAffineValueRange getMaxRange(Value value);
 
-  TaffoAffineValueRange(std::optional<LibAffine::Var> value = std::nullopt)
-      : value(std::move(value)) {}
+  TaffoAffineValueRange(std::optional<LibAffine::Var> val = std::nullopt)
+      : value(std::move(val)) {}
 
   /// Whether the range is uninitialized. This happens when the state hasn't
   /// been set during the analysis.
@@ -27,6 +30,7 @@ public:
   /// Compare two ranges.
   bool operator==(const TaffoAffineValueRange &rhs) const {
     return value == rhs.value;
+    // return true;
   }
 
   /// Take the union of two ranges.
@@ -34,6 +38,7 @@ public:
                                     const TaffoAffineValueRange &rhs) {
     if (lhs.isUninitialized())
       return rhs;
+
     if (rhs.isUninitialized())
       return lhs;
 
@@ -42,9 +47,8 @@ public:
 
   /// Print the value range.
   void print(raw_ostream &os) const {
-    auto range = getValue().get_range();
-    os << "taffo range: [" << range.start.convertToDouble() << ", "
-       << range.end.convertToDouble() << "]";
+    auto range = getValue();
+    os << getValue().print();
   }
 
 private:
