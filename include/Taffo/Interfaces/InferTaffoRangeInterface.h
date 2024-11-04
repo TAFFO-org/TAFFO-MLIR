@@ -2,8 +2,8 @@
 // Created by Paolo on 15/05/2024.
 //
 
-#ifndef TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_H
-#define TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_H
+#ifndef TAFFO_INTERFACES_INFERTAFFORANGEINTERFACE_H
+#define TAFFO_INTERFACES_INFERTAFFORANGEINTERFACE_H
 
 #include "libaffine.hpp"
 #include "mlir/IR/OpDefinition.h"
@@ -18,6 +18,6 @@ using SetTaffoAffineRangeFn = function_ref<void(Value, const LibAffine::Var &)>;
 
 } // namespace mlir::taffo
 
-#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h.inc"
+#include "Taffo/Interfaces/InferTaffoRangeInterface.h.inc"
 
 #endif // TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_H

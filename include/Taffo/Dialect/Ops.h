@@ -1,14 +1,15 @@
 #ifndef TAFFO_DIALECT_OPS_H
 #define TAFFO_DIALECT_OPS_H
 
-#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+#include "Taffo/Interfaces/InferTaffoRangeInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
-//possible duplicates from marco
+// possible duplicates from marco
+#include "mlir/Dialect/Bufferization/IR/AllocationOpInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -21,7 +22,6 @@
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
-#include "mlir/Dialect/Bufferization/IR/AllocationOpInterface.h"
 
 #include "llvm/ADT/APFloat.h"
 

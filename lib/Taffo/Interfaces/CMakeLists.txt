@@ -1,5 +1,5 @@
 add_mlir_dialect_library(MLIRTaffoInterfaces
-        InferTaffoRangeNtvInterface.cpp
+        InferTaffoRangeInterface.cpp
 
         DEPENDS
         MLIRTaffoIncGen

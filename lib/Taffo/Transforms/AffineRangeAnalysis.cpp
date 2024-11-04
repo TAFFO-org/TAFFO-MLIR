@@ -3,7 +3,7 @@
 // might want to clean up later
 #include "Taffo/Dialect/Ops.h"
 #include "Taffo/Dialect/Taffo.h"
-#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+#include "Taffo/Interfaces/InferTaffoRangeInterface.h"
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
@@ -71,7 +71,7 @@ void TaffoAffineRangeAnalysis::visitOperation(
       })) {
     return;
   }
-  auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op);
+  auto inferrable = dyn_cast<InferTaffoRangeInterface>(op);
   if (!inferrable)
     return setAllToEntryStates(results);
 
@@ -125,7 +125,7 @@ void TaffoAffineRangeAnalysis::visitOperation(
 void TaffoAffineRangeAnalysis::visitNonControlFlowArguments(
     Operation *op, const RegionSuccessor &successor,
     ArrayRef<TaffoAffineRangeLattice *> argLattices, unsigned firstIndex) {
-  if (auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op)) {
+  if (auto inferrable = dyn_cast<InferTaffoRangeInterface>(op)) {
     LLVM_DEBUG(llvm::dbgs()
                << "[Affine VRA] Inferring ranges for " << *op << "\n");
     // If the lattice on any operand is unitialized, bail out.

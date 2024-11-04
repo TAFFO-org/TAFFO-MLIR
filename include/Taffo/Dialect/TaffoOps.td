@@ -3,7 +3,7 @@
 
 include "Taffo/Dialect/Taffo.td"
 include "Taffo/Dialect/TaffoTypes.td"
-include "Taffo/Interfaces/InferTaffoRangeNtvInterface.td"
+include "Taffo/Interfaces/InferTaffoRangeInterface.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -25,7 +25,7 @@ class Taffo_Op<string mnemonic, list<Trait> traits = []> :
     Op<Taffo_Dialect, mnemonic, traits>;
 
 def Taffo_CastToRealOp : Taffo_Op<"cast2real",
-    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    [DeclareOpInterfaceMethods<InferTaffoRangeInterface>]> {
     let summary = "taffo cast2real summary";
     let description = [{
         taffo cast2real description
@@ -42,7 +42,7 @@ def Taffo_CastToRealOp : Taffo_Op<"cast2real",
 }
 
 def Taffo_CastToFloatOp : Taffo_Op<"cast2float",
-    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    [DeclareOpInterfaceMethods<InferTaffoRangeInterface>]> {
     let summary = "taffo cast2real summary";
     let description = [{
         taffo cast2real description
@@ -84,7 +84,7 @@ def Taffo_BitcastToIntOp : Taffo_Op<"bitcastr2i"> {
 }
 
 def Taffo_AddOp : Taffo_Op<"add",
-    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    [DeclareOpInterfaceMethods<InferTaffoRangeInterface>]> {
     let summary = "taffo add summary";
     let description = [{
         taffo add description
@@ -98,7 +98,7 @@ def Taffo_AddOp : Taffo_Op<"add",
 }
 
 def Taffo_MultOp : Taffo_Op<"mult",
-    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    [DeclareOpInterfaceMethods<InferTaffoRangeInterface>]> {
     let summary = "taffo mult summary";
     let description = [{
         taffo mult description
@@ -112,7 +112,7 @@ def Taffo_MultOp : Taffo_Op<"mult",
 }
 
 def Taffo_SubOp : Taffo_Op<"sub",
-    [DeclareOpInterfaceMethods<InferTaffoRangeNtvInterface>]> {
+    [DeclareOpInterfaceMethods<InferTaffoRangeInterface>]> {
     let summary = "taffo sub summary";
     let description = [{
         taffo sub description

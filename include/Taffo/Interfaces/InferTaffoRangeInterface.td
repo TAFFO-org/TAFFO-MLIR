@@ -4,7 +4,7 @@
 include "Taffo/Dialect/Taffo.td"
 include "mlir/IR/OpBase.td"
 
-def InferTaffoRangeNtvInterface : OpInterface<"InferTaffoRangeNtvInterface"> {
+def InferTaffoRangeInterface : OpInterface<"InferTaffoRangeInterface"> {
   let description = [{
     Allows operations to participate in range analysis for floating point values
   }];

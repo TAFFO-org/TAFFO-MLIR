@@ -4,7 +4,7 @@
 #include "Taffo/Transforms/NtvRangeAnalysis.h"
 #include "Taffo/Dialect/Ops.h"
 #include "Taffo/Dialect/Taffo.h"
-#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+#include "Taffo/Interfaces/InferTaffoRangeInterface.h"
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
@@ -20,9 +20,9 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include <cassert>
+#include <llvm/ADT/APFloat.h>
 #include <optional>
 #include <utility>
-#include <llvm/ADT/APFloat.h>
 
 #define DEBUG_TYPE "value-range-analysis"
 
@@ -35,8 +35,9 @@ TaffoValueRange TaffoValueRange::getMaxRange(Value value) {
   // placeholder, needs to work based on annotations of Value in the future
   // instead of defaulting to APFloat::IEEEdouble()
   // should this return [-max, max] instead?
-  return TaffoValueRange(NtvRange(APFloat::getInf(APFloat::IEEEdouble(), true),
-                                  APFloat::getInf(APFloat::IEEEdouble(), false)));
+  return TaffoValueRange(
+      NtvRange(APFloat::getInf(APFloat::IEEEdouble(), true),
+               APFloat::getInf(APFloat::IEEEdouble(), false)));
 }
 
 void TaffoRangeLattice::onUpdate(DataFlowSolver *solver) const {
@@ -45,9 +46,9 @@ void TaffoRangeLattice::onUpdate(DataFlowSolver *solver) const {
   // If the range can be narrowed to a constant, update the constant
   // value of the SSA value.
   const NtvRange range = getValue().getValue();
-  std::optional<APFloat> constant =
-      range.first == range.second ? std::optional<APFloat>(range.first)
-                                  : std::nullopt;
+  std::optional<APFloat> constant = range.first == range.second
+                                        ? std::optional<APFloat>(range.first)
+                                        : std::nullopt;
 
   auto value = point.get<Value>();
   auto *cv = solver->getOrCreateState<Lattice<ConstantValue>>(value);
@@ -74,8 +75,8 @@ void TaffoNtvRangeAnalysis::visitOperation(
       })) {
     return;
   }
-  
-  auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op);
+
+  auto inferrable = dyn_cast<InferTaffoRangeInterface>(op);
   if (!inferrable)
     return setAllToEntryStates(results);
 
@@ -92,9 +93,9 @@ void TaffoNtvRangeAnalysis::visitOperation(
       return;
     assert(llvm::is_contained(op->getResults(), result));
 
-    LLVM_DEBUG(llvm::dbgs() << "Inferred range: ["
-                            << attrs.first.convertToDouble() << ", "
-                            << attrs.second.convertToDouble() << "]\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "Inferred range: [" << attrs.first.convertToDouble() << ", "
+               << attrs.second.convertToDouble() << "]\n");
     TaffoRangeLattice *lattice = results[result.getResultNumber()];
     TaffoValueRange oldRange = lattice->getValue();
 
@@ -127,7 +128,7 @@ void TaffoNtvRangeAnalysis::visitOperation(
 void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
     Operation *op, const RegionSuccessor &successor,
     ArrayRef<TaffoRangeLattice *> argLattices, unsigned firstIndex) {
-  if (auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op)) {
+  if (auto inferrable = dyn_cast<InferTaffoRangeInterface>(op)) {
     LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
     // If the lattice on any operand is unitialized, bail out.
     if (llvm::any_of(op->getOperands(), [&](Value value) {
@@ -146,9 +147,9 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
       if (!llvm::is_contained(successor.getSuccessor()->getArguments(), arg))
         return;
 
-      LLVM_DEBUG(llvm::dbgs() << "Inferred range: ["
-                              << attrs.first.convertToDouble() << ", "
-                              << attrs.second.convertToDouble() << "]\n");
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Inferred range: [" << attrs.first.convertToDouble() << ", "
+                 << attrs.second.convertToDouble() << "]\n");
       TaffoRangeLattice *lattice = argLattices[arg.getArgNumber()];
       TaffoValueRange oldRange = lattice->getValue();
 
@@ -183,4 +184,3 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
   return SparseForwardDataFlowAnalysis::visitNonControlFlowArguments(
       op, successor, argLattices, firstIndex);
 }
-

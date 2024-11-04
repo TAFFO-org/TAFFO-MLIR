@@ -79,7 +79,7 @@ public:
   }
 
   /// Visit an operation. Invoke the transfer function on each operation that
-  /// implements `InferTaffoRangeNtvInterface`.
+  /// implements `InferTaffoRangeInterface`.
   void visitOperation(Operation *op,
                       ArrayRef<const TaffoAffineRangeLattice *> operands,
                       ArrayRef<TaffoAffineRangeLattice *> results) override;
