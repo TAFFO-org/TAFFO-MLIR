@@ -81,20 +81,16 @@ public:
     for (auto i : result.err_symbol_index) {
       if (index_ida >= err_symbol_index.size() ||
           err_symbol_index[index_ida] != i) {
-        result.err_symbol_coeffs.push_back(b.err_symbol_coeffs[index_idb]);
-        index_idb++;
+        result.err_symbol_coeffs.push_back(b.err_symbol_coeffs[index_idb++]);
         continue;
       }
       if (index_idb >= b.err_symbol_index.size() ||
           b.err_symbol_index[index_idb] != i) {
-        result.err_symbol_coeffs.push_back(err_symbol_coeffs[index_ida]);
-        index_ida++;
+        result.err_symbol_coeffs.push_back(err_symbol_coeffs[index_ida++]);
         continue;
       }
       result.err_symbol_coeffs.push_back(llvm::maximum(
-          err_symbol_coeffs[index_ida], b.err_symbol_coeffs[index_idb]));
-      index_ida++;
-      index_idb++;
+          err_symbol_coeffs[index_ida++], b.err_symbol_coeffs[index_idb++]));
     }
     // Calulate the approximation error in a new symbol
     result.err_symbol_index.push_back(inc_err_symbol_index());
