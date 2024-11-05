@@ -75,8 +75,8 @@ public:
         auto init = parent.getInits().front();
         if (llvm::range_size(init.getUsers()) > 1) {
           mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
-          auto align = b.create<mlir::taffo::AlignOp>(
-              parent.getLoc(), resType, init);
+          auto align =
+              b.create<mlir::taffo::AlignOp>(parent.getLoc(), resType, init);
           init.replaceUsesWithIf(
               align.getResult(),
               [parent](mlir::OpOperand &U) { return U.getOwner() == parent; });
@@ -160,7 +160,7 @@ public:
 
       // if one or more of my operands are signed, I am also signed
       if (!signd && !llvm::isa<CastToRealOp>(op) &&
-          llvm::any_of(op->getOperands(), [op](mlir::Value v) {
+          llvm::any_of(op->getOperands(), [](mlir::Value v) {
             return ::llvm::dyn_cast<RealType>(v.getType()).getSignd();
           })) {
         signd = true;

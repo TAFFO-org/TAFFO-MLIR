@@ -32,7 +32,7 @@ public:
         return mlir::WalkResult::advance();
       }
 
-      auto adaptToBitwidth = [targetBitwidth](Value v) {
+      auto adaptToBitwidth = [](Value v) {
         RealType oldType = ::llvm::dyn_cast<RealType>(v.getType());
 
         // TODO: add NaN/Inf check on exp
