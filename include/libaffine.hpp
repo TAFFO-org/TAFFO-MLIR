@@ -65,13 +65,36 @@ public:
       os << "Symbol " << err_symbol_index[i] << ": "
          << err_symbol_coeffs[i].convertToDouble() << "\n";
     }
+    // print the range
+    Range range = get_range();
+    os << "Range: [" << range.start.convertToDouble() << ", "
+       << range.end.convertToDouble() << "]\n";
     return os.str();
+  }
+
+  bool is_subset_of(const Var &b) const {
+    auto a_range = get_range();
+    auto b_range = b.get_range();
+
+    // Check if 'a' is a subset of 'b'
+    if (a_range.start >= b_range.start && a_range.end <= b_range.end) {
+      return true;
+    }
+    return false;
   }
 
   // define the join operation on two affine variables
   Var join(const Var &b) const {
-    // assert the central value is the same and the error symbols that are
-    // shared have the same coefficient
+
+    // Check if 'a' is a subset of 'b'
+    if (is_subset_of(b)) {
+      return b;
+    }
+    // Check if 'b' is a subset of 'a'
+    if (b.is_subset_of(*this)) {
+      return *this;
+    }
+
     Var result;
     result.c_value = (c_value + b.c_value) / (llvm::APFloat)2.0;
     std::set_union(err_symbol_index.begin(), err_symbol_index.end(),
@@ -91,13 +114,10 @@ public:
         result.err_symbol_coeffs.push_back(err_symbol_coeffs[index_ida++]);
         continue;
       }
-      result.err_symbol_coeffs.push_back(llvm::maximum(
+      result.err_symbol_coeffs.push_back(llvm::minimum(
           err_symbol_coeffs[index_ida++], b.err_symbol_coeffs[index_idb++]));
     }
-    // Calulate the approximation error in a new symbol
-    // result.err_symbol_index.push_back(inc_err_symbol_index());
-    // result.err_symbol_coeffs.push_back(llvm::abs(c_value - b.c_value) /
-    //                                    (llvm::APFloat)2.0);
+
     return result;
   }
 
