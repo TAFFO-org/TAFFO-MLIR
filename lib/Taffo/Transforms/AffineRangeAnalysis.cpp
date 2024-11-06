@@ -93,20 +93,20 @@ void TaffoAffineRangeLattice::onUpdate(DataFlowSolver *solver) const {
                                         ? std::optional<APFloat>(range.start)
                                         : std::nullopt;
 
-  auto value = point.get<Value>();
-  auto *cv = solver->getOrCreateState<Lattice<ConstantValue>>(value);
-  if (!constant)
-    return solver->propagateIfChanged(
-        cv, cv->join(ConstantValue::getUnknownConstant()));
+  // auto value = point.get<Value>();
+  // auto *cv = solver->getOrCreateState<Lattice<ConstantValue>>(value);
+  // if (!constant)
+  //   return solver->propagateIfChanged(
+  //       cv, cv->join(ConstantValue::getUnknownConstant()));
 
-  Dialect *dialect;
-  if (auto *parent = value.getDefiningOp())
-    dialect = parent->getDialect();
-  else
-    dialect = value.getParentBlock()->getParentOp()->getDialect();
-  solver->propagateIfChanged(
-      cv, cv->join(ConstantValue(FloatAttr::get(value.getType(), *constant),
-                                 dialect)));
+  // Dialect *dialect;
+  // if (auto *parent = value.getDefiningOp())
+  //   dialect = parent->getDialect();
+  // else
+  //   dialect = value.getParentBlock()->getParentOp()->getDialect();
+  // solver->propagateIfChanged(
+  //     cv, cv->join(ConstantValue(FloatAttr::get(value.getType(), *constant),
+  //                                dialect)));
 }
 
 void TaffoAffineRangeAnalysis::visitOperation(
