@@ -41,7 +41,11 @@ public:
 
     if (rhs.isUninitialized())
       return lhs;
-
+    // LLVM_DEBUG(llvm::dbgs() << "Joining ranges: " << lhs.getValue().print()
+    //                         << " and " << rhs.getValue().print() << "\n");
+    // LLVM_DEBUG(llvm::dbgs()
+    //            << "Joined range: "
+    //            << lhs.getValue().join(rhs.getValue()).print() << "\n");
     return TaffoAffineValueRange{lhs.getValue().join(rhs.getValue())};
   }
 
