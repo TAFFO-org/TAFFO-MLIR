@@ -83,6 +83,15 @@ public:
     return false;
   }
 
+  llvm::APFloat range_union_midpoint(const Var &b) const {
+    auto a_range = this->get_range();
+    auto b_range = b.get_range();
+    auto minmax =
+        std::minmax({a_range.start, a_range.end, b_range.start, b_range.end});
+    // calculate midpoint
+    return (minmax.first + minmax.second) / (llvm::APFloat)2.0;
+  }
+
   // define the join operation on two affine variables
   Var join(const Var &b) const {
 
