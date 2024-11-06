@@ -95,17 +95,8 @@ public:
   // define the join operation on two affine variables
   Var join(const Var &b) const {
 
-    // Check if 'a' is a subset of 'b'
-    if (is_subset_of(b)) {
-      return b;
-    }
-    // Check if 'b' is a subset of 'a'
-    if (b.is_subset_of(*this)) {
-      return *this;
-    }
-
     Var result;
-    result.c_value = (c_value + b.c_value) / (llvm::APFloat)2.0;
+    result.c_value = range_union_midpoint(b);
     std::set_union(err_symbol_index.begin(), err_symbol_index.end(),
                    b.err_symbol_index.begin(), b.err_symbol_index.end(),
                    std::back_inserter(result.err_symbol_index));
@@ -123,10 +114,21 @@ public:
         result.err_symbol_coeffs.push_back(err_symbol_coeffs[index_ida++]);
         continue;
       }
-      result.err_symbol_coeffs.push_back(llvm::minimum(
-          err_symbol_coeffs[index_ida++], b.err_symbol_coeffs[index_idb++]));
+      if (llvm::abs(err_symbol_coeffs[index_ida]) <=
+          llvm::abs(b.err_symbol_coeffs[index_idb])) {
+        result.err_symbol_coeffs.push_back(err_symbol_coeffs[index_ida]);
+      } else {
+        result.err_symbol_coeffs.push_back(b.err_symbol_coeffs[index_idb]);
+      }
+      index_ida++;
+      index_idb++;
     }
-
+    // Calcluate the supremum of the union two ranges
+    auto sup = llvm::maximum(get_range().end, b.get_range().end);
+    // add purtrubation term
+    result.err_symbol_index.push_back(inc_err_symbol_index());
+    result.err_symbol_coeffs.push_back(sup - result.c_value -
+                                       result.abs_coeff_sum());
     return result;
   }
 
