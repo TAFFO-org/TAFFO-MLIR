@@ -13,13 +13,15 @@ bool operator==(const Var &a, const Var &b) {
     return true;
   // if (a.c_value != b.c_value)
   //   return false;
-  // if (a.err_symbol_index != b.err_symbol_index)
+  // if (a.noise_symbol_index != b.noise_symbol_index)
   //   return false;
-  // return std::equal(a.err_symbol_coeffs.begin(), a.err_symbol_coeffs.end(),
-  //                   b.err_symbol_coeffs.begin());
+  // return std::equal(a.noise_symbol_coeffs.begin(),
+  // a.noise_symbol_coeffs.end(),
+  //                   b.noise_symbol_coeffs.begin());
   if (a.get_range().start == b.get_range().start &&
       a.get_range().end == b.get_range().end)
     return true;
+
   return false;
 }
 
