@@ -11,13 +11,7 @@ Var operator*(const llvm::APFloat b, const Var var) { return var * b; }
 bool operator==(const Var &a, const Var &b) {
   if (a.c_value.isNaN() && b.c_value.isNaN())
     return true;
-  // if (a.c_value != b.c_value)
-  //   return false;
-  // if (a.noise_symbol_index != b.noise_symbol_index)
-  //   return false;
-  // return std::equal(a.noise_symbol_coeffs.begin(),
-  // a.noise_symbol_coeffs.end(),
-  //                   b.noise_symbol_coeffs.begin());
+
   if (a.get_range().start == b.get_range().start &&
       a.get_range().end == b.get_range().end)
     return true;
