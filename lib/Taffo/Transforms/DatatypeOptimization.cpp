@@ -1,4 +1,4 @@
-#include "Taffo/Transforms/DatatypeOptimizationPass.h"
+#include "Taffo/Transforms/DatatypeOptimization.h"
 #include "Taffo/Dialect/Attributes.h"
 #include "Taffo/Dialect/Taffo.h"
 #include "mlir/IR/BuiltinDialect.h"

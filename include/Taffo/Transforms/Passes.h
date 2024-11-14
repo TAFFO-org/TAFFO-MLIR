@@ -1,9 +1,9 @@
 #ifndef TAFFO_TRANSFORMS_PASSES_H
 #define TAFFO_TRANSFORMS_PASSES_H
 
-#include "Taffo/Transforms/ValueRangeAnalysisPass.h"
-#include "Taffo/Transforms/LowerToArithPass.h"
-#include "Taffo/Transforms/DatatypeOptimizationPass.h"
+#include "Taffo/Transforms/DatatypeInitialization.h"
+#include "Taffo/Transforms/TaffoToArith.h"
+#include "Taffo/Transforms/DatatypeOptimization.h"
 
 namespace mlir::taffo
 {

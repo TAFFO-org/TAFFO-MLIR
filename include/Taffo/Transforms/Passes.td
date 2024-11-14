@@ -3,10 +3,10 @@
 
 include "mlir/Pass/PassBase.td"
 
-def ValueRangeAnalysisPass
-    : Pass<"value-range-analysis">
+def DatatypeInitializationPass
+    : Pass<"dt-initialization">
 {
-    let summary = "Infer the value range of every SSA value.";
+    let summary = "Initialize the datatype of every SSA value, based on VRA results.";
 
     let description = [{
         Infer the value range of every SSA value.
@@ -26,8 +26,8 @@ def ValueRangeAnalysisPass
 
 }
 
-def LowerToArithPass
-    : Pass<"lower-to-arith">
+def TaffoToArithConversionPass
+    : Pass<"convert-taffo-to-arith">
 {
     let summary = "Lower Taffo ops to Arith dialect.";
 

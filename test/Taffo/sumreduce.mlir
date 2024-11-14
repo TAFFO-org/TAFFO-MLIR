@@ -18,7 +18,7 @@ func.func @reduce() -> (f32) {
   %sum = scf.for %iv = %lb to %ub step %step
       iter_args(%sum_iter = %r_sum_0) -> (!taffo.real) {
 
-    %sum_next = taffo.add %sum_iter, %r_sum_0 : (!taffo.real, !taffo.real) -> !taffo.real
+    %sum_next = taffo.mult %sum_iter, %r_sum_0 : (!taffo.real, !taffo.real) -> !taffo.real
 
     // Yield current iteration sum to next iteration %sum_iter or to %sum
     // if final iteration.

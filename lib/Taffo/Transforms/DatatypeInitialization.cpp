@@ -1,4 +1,4 @@
-#include "Taffo/Transforms/ValueRangeAnalysisPass.h"
+#include "Taffo/Transforms/DatatypeInitialization.h"
 #include "Taffo/Dialect/Attributes.h"
 #include "Taffo/Dialect/Taffo.h"
 #include "Taffo/Transforms/NtvRangeAnalysis.h"
@@ -10,18 +10,18 @@
 #include "Taffo/Dialect/Ops.h"
 
 namespace mlir::taffo {
-#define GEN_PASS_DEF_VALUERANGEANALYSISPASS
+#define GEN_PASS_DEF_DATATYPEINITIALIZATIONPASS
 #include "Taffo/Transforms/Passes.h.inc"
 } // namespace mlir::taffo
 
 using namespace ::mlir::taffo;
 
 namespace {
-class ValueRangeAnalysisPass
-    : public mlir::taffo::impl::ValueRangeAnalysisPassBase<
-          ValueRangeAnalysisPass> {
+class DatatypeInitializationPass
+    : public mlir::taffo::impl::DatatypeInitializationPassBase<
+          DatatypeInitializationPass> {
 public:
-  using ValueRangeAnalysisPassBase::ValueRangeAnalysisPassBase;
+  using DatatypeInitializationPassBase::DatatypeInitializationPassBase;
 
   void runOnOperation() override {
     mlir::Operation *module = getOperation();

@@ -1,4 +1,4 @@
-#include "Taffo/Transforms/LowerToArithPass.h"
+#include "Taffo/Transforms/TaffoToArith.h"
 #include "Taffo/Dialect/Attributes.h"
 #include "Taffo/Dialect/Taffo.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -13,17 +13,18 @@
 #include "Taffo/Dialect/Ops.h"
 
 namespace mlir::taffo {
-#define GEN_PASS_DEF_LOWERTOARITHPASS
+#define GEN_PASS_DEF_TAFFOTOARITHCONVERSIONPASS
 #include "Taffo/Transforms/Passes.h.inc"
 } // namespace mlir::taffo
 
 using namespace ::mlir::taffo;
 
 namespace mlir {
-class LowerToArithPass
-    : public mlir::taffo::impl::LowerToArithPassBase<LowerToArithPass> {
+class TaffoToArithConversionPass
+    : public mlir::taffo::impl::TaffoToArithConversionPassBase<
+          TaffoToArithConversionPass> {
 public:
-  using LowerToArithPassBase::LowerToArithPassBase;
+  using TaffoToArithConversionPassBase::TaffoToArithConversionPassBase;
 
   class TaffoToArithTypeConverter : public mlir::TypeConverter {
   public:
@@ -528,14 +529,15 @@ public:
       rewriter.startOpModification(op);
       auto terminator = cast<scf::YieldOp>(body->getTerminator());
       SmallVector<Value> terminatorRes;
-      if(failed(rewriter.getRemappedValues(terminator->getOperands(), terminatorRes)))
+      if (failed(rewriter.getRemappedValues(terminator->getOperands(),
+                                            terminatorRes)))
         return failure();
       rewriter.modifyOpInPlace(terminator,
                                [&] { terminator->setOperands(terminatorRes); });
 
       rewriter.finalizeOpModification(op);
 
-      if(failed(rewriter.convertRegionTypes(&region, *getTypeConverter())))
+      if (failed(rewriter.convertRegionTypes(&region, *getTypeConverter())))
         return failure();
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
