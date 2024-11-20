@@ -171,6 +171,7 @@ void TaffoAffineRangeAnalysis::visitOperation(
                << "[Affine VRA] Inferred range: ["
                << attrs.get_range().start.convertToDouble() << ", "
                << attrs.get_range().end.convertToDouble() << "]\n");
+    LLVM_DEBUG(llvm::dbgs() << attrs.print_affine_form());
     TaffoAffineRangeLattice *lattice = results[result.getResultNumber()];
     TaffoAffineValueRange oldRange = lattice->getValue();
 
@@ -259,6 +260,7 @@ void TaffoAffineRangeAnalysis::visitNonControlFlowArguments(
                  << "[Affine VRA] Inferred range: ["
                  << attrs.get_range().start.convertToDouble() << ", "
                  << attrs.get_range().end.convertToDouble() << "]\n");
+      LLVM_DEBUG(llvm::dbgs() << attrs.print_affine_form());
       TaffoAffineRangeLattice *lattice = argLattices[arg.getArgNumber()];
       TaffoAffineValueRange oldRange = lattice->getValue();
 
