@@ -75,6 +75,18 @@ public:
     return os.str();
   }
 
+  std::string print_affine_form() const {
+    std::ostringstream os;
+    os << "X = " << c_value.convertToDouble();
+    for (size_t i = 0; i < noise_symbol_coeffs.size(); ++i) {
+      os << " + " << noise_symbol_coeffs[i].convertToDouble() << "e"
+         << noise_symbol_index[i];
+    }
+    // print perturbation term
+    os << " + " << beta.convertToDouble() << "eu" << "\n";
+    return os.str();
+  }
+
   bool is_subset_of(const Var &b) const {
     auto a_range = get_range();
     auto b_range = b.get_range();
