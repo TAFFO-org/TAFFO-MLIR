@@ -41,8 +41,9 @@ LogicalResult CastToRealOp::verify() {
 
   auto from = ::llvm::dyn_cast<FloatAttr>(const_op.getValue()).getValue();
 
-  if (getMin() == getMax() &&
-      from.convertToDouble() != getMax().convertToDouble()) {
+  bool is_eq = std::islessequal(
+      from.convertToDouble() - getMax().convertToDouble(), 1e-4);
+  if (getMin() == getMax() && !is_eq) {
     emitOpError(
         "Lower bound and upper bound coincide but are not equal to $from");
     return failure();
