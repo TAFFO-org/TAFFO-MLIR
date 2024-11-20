@@ -122,13 +122,12 @@ public:
                           b.noise_symbol_index.end(),
                           std::back_inserter(result.noise_symbol_index));
 
-    unsigned int index_ida = 0;
-    unsigned int index_idb = 0;
-    for (auto i : result.noise_symbol_index) {
-      auto min = llvm::minimum(noise_symbol_coeffs[index_ida],
-                               b.noise_symbol_coeffs[index_idb]);
-      auto max = llvm::maximum(noise_symbol_coeffs[index_ida],
-                               b.noise_symbol_coeffs[index_idb]);
+    for (unsigned int i = 0; i < result.noise_symbol_index.size(); ++i) {
+
+      auto min =
+          llvm::minimum(noise_symbol_coeffs[i], b.noise_symbol_coeffs[i]);
+      auto max =
+          llvm::maximum(noise_symbol_coeffs[i], b.noise_symbol_coeffs[i]);
 
       if (min.isNegative() && !max.isNegative()) {
         result.noise_symbol_coeffs.push_back(llvm::APFloat(0.0));
@@ -140,13 +139,15 @@ public:
           result.noise_symbol_coeffs.push_back(max);
         }
       }
-      index_ida++;
-      index_idb++;
     }
     // Calcluate the supremum of the union two ranges
     auto sup = llvm::maximum(get_range().end, b.get_range().end);
     // calculate purtrubation term
     result.beta = sup - result.c_value - result.abs_coeff_sum();
+    // if (!result.beta.isZero() && !result.beta.isNaN() &&
+    //     !result.beta.isInfinity())
+    //   // Shift the union noise symbol to regualr noise symbols
+    //   result = !result;
     return result;
   }
 
