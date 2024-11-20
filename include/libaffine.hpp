@@ -303,6 +303,20 @@ public:
     return result;
   }
 
+  Var operator!() const {
+    Var result;
+    result.c_value = c_value;
+    for (auto i : noise_symbol_index)
+      result.noise_symbol_index.push_back(i);
+    for (auto i : noise_symbol_coeffs)
+      result.noise_symbol_coeffs.push_back(i);
+
+    // Add beta as a new symbol
+    result.noise_symbol_index.push_back(inc_err_symbol_index());
+    result.noise_symbol_coeffs.push_back(beta);
+    return result;
+  }
+
   // Make == operator a friend function of this class
   friend bool operator==(const Var &a, const Var &b);
 };
