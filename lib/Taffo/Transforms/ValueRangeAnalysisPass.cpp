@@ -40,62 +40,9 @@ public:
 
     auto result = module->walk([&](mlir::Operation *op) {
       if (llvm::isa<mlir::scf::YieldOp>(op)) {
-
-        auto results = op->getOperands();
-
-        if (llvm::range_size(results) == 0) {
-          return mlir::WalkResult::advance();
+        for ([[maybe_unused]] auto i : op->getOperands()) {
+          handleYield(op);
         }
-
-        // Support for loops with multiple loop carried results
-        llvm::SmallVector<RealType, 4> resTypes;
-        for (auto result : results) {
-          RealType resType = llvm::dyn_cast<RealType>(result.getType());
-          if (!resType) {
-            return mlir::WalkResult::advance();
-          }
-          resTypes.push_back(resType);
-        }
-
-        mlir::LoopLikeOpInterface parent =
-            llvm::dyn_cast<mlir::LoopLikeOpInterface>(op->getParentOp());
-        if (!parent) {
-          return mlir::WalkResult::advance();
-        }
-
-        // propagate forward
-        auto iterArgs = parent.getRegionIterArgs();
-        for (auto it : llvm::zip(iterArgs, resTypes)) {
-          mlir::BlockArgument iterArg = std::get<0>(it);
-          RealType resType = std::get<1>(it);
-          iterArg.setType(resType);
-        }
-
-        auto parentResults = parent->getResults();
-        for (auto it : llvm::zip(parentResults, resTypes)) {
-          mlir::Value parentResult = std::get<0>(it);
-          RealType resType = std::get<1>(it);
-          parentResult.setType(resType);
-        }
-
-        // propagate backwards
-        auto inits = parent.getInits();
-        for (auto it : llvm::zip(inits, resTypes)) {
-          mlir::Value init = std::get<0>(it);
-          RealType resType = std::get<1>(it);
-          if (llvm::range_size(init.getUsers()) > 1) {
-            mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
-            auto align =
-                b.create<mlir::taffo::AlignOp>(parent.getLoc(), resType, init);
-            init.replaceUsesWithIf(align.getResult(),
-                                   [parent](mlir::OpOperand &U) {
-                                     return U.getOwner() == parent;
-                                   });
-          } else {
-            init.setType(resType);
-          }
-        }
-
         return mlir::WalkResult::advance();
       }
 
@@ -179,8 +126,9 @@ public:
         exponent += 1;
       }
 
-      op->getResult(0).setType(
-          RealType::get(op->getContext(), signd, exponent, bitwidth));
+      auto new_type =
+          RealType::get(op->getContext(), signd, exponent, bitwidth);
+      op->getResult(0).setType(new_type);
 
       return mlir::WalkResult::advance();
     });
@@ -188,5 +136,62 @@ public:
     if (result.wasInterrupted())
       signalPassFailure();
   }
+
+  void handleYield(mlir::Operation *op) {
+    auto results = op->getOperands();
+
+    if (llvm::range_size(results) == 0) {
+      return;
+    }
+
+    // Support for loops with multiple loop carried results
+    llvm::SmallVector<RealType, 4> resTypes;
+    for (auto result : results) {
+      RealType resType = llvm::dyn_cast<RealType>(result.getType());
+      if (!resType) {
+        return;
+      }
+      resTypes.push_back(resType);
+    }
+
+    mlir::LoopLikeOpInterface parent =
+        llvm::dyn_cast<mlir::LoopLikeOpInterface>(op->getParentOp());
+    if (!parent) {
+      return;
+    }
+
+    // propagate forward
+    auto iterArgs = parent.getRegionIterArgs();
+    for (auto it : llvm::zip(iterArgs, resTypes)) {
+      mlir::BlockArgument iterArg = std::get<0>(it);
+      RealType resType = std::get<1>(it);
+      iterArg.setType(resType);
+    }
+
+    auto parentResults = parent->getResults();
+    for (auto it : llvm::zip(parentResults, resTypes)) {
+      mlir::Value parentResult = std::get<0>(it);
+      RealType resType = std::get<1>(it);
+      parentResult.setType(resType);
+    }
+
+    // propagate backwards
+    auto inits = parent.getInits();
+    for (auto it : llvm::zip(inits, resTypes)) {
+      mlir::Value init = std::get<0>(it);
+      RealType resType = std::get<1>(it);
+      if (llvm::range_size(init.getUsers()) > 1) {
+        mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
+        auto align =
+            b.create<mlir::taffo::AlignOp>(parent.getLoc(), resType, init);
+        init.replaceUsesWithIf(align.getResult(), [parent](mlir::OpOperand &U) {
+          return U.getOwner() == parent;
+        });
+      } else {
+        init.setType(resType);
+      }
+    }
+  }
 };
+
 } // namespace
