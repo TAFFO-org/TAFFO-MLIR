@@ -62,8 +62,10 @@ LogicalResult AlignOp::verify() {
         "Target MSB weight must be greater or equal to source MSB weight");
     return failure();
   }
-  if (target.getSignd() != source.getSignd()) {
-    emitOpError("Target sign must be equal to source sign");
+  if (!source.getSignd() && target.getSignd() &&
+      getMSB(source) == getMSB(target)) {
+    emitOpError("If target is signed and source isn't, target MSB must be "
+                "greater than source MSB");
     return failure();
   }
   return success();
