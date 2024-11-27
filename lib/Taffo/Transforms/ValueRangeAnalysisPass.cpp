@@ -47,16 +47,14 @@ public:
           return mlir::WalkResult::advance();
         }
 
-        // TODO: add support for loops with multiple loop carried results
-        if (llvm::range_size(results) > 1) {
-          op->emitError() << "Taffo currently doesn't support YieldOps with "
-                             "multiple arguments";
-          return mlir::WalkResult::interrupt();
-        }
-
-        RealType resType = llvm::dyn_cast<RealType>(results.front().getType());
-        if (!resType) {
-          return mlir::WalkResult::advance();
+        // Support for loops with multiple loop carried results
+        llvm::SmallVector<RealType, 4> resTypes;
+        for (auto result : results) {
+          RealType resType = llvm::dyn_cast<RealType>(result.getType());
+          if (!resType) {
+            return mlir::WalkResult::advance();
+          }
+          resTypes.push_back(resType);
         }
 
         mlir::LoopLikeOpInterface parent =
@@ -66,22 +64,36 @@ public:
         }
 
         // propagate forward
-        mlir::BlockArgument iterArg = parent.getRegionIterArgs().front();
-        iterArg.setType(resType);
-        parent->getResults().front().setType(resType);
+        auto iterArgs = parent.getRegionIterArgs();
+        for (auto it : llvm::zip(iterArgs, resTypes)) {
+          mlir::BlockArgument iterArg = std::get<0>(it);
+          RealType resType = std::get<1>(it);
+          iterArg.setType(resType);
+        }
 
-        // TODO: handle function arguments
+        auto parentResults = parent->getResults();
+        for (auto it : llvm::zip(parentResults, resTypes)) {
+          mlir::Value parentResult = std::get<0>(it);
+          RealType resType = std::get<1>(it);
+          parentResult.setType(resType);
+        }
+
         // propagate backwards
-        auto init = parent.getInits().front();
-        if (llvm::range_size(init.getUsers()) > 1) {
-          mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
-          auto align =
-              b.create<mlir::taffo::AlignOp>(parent.getLoc(), resType, init);
-          init.replaceUsesWithIf(
-              align.getResult(),
-              [parent](mlir::OpOperand &U) { return U.getOwner() == parent; });
-        } else {
-          init.setType(resType);
+        auto inits = parent.getInits();
+        for (auto it : llvm::zip(inits, resTypes)) {
+          mlir::Value init = std::get<0>(it);
+          RealType resType = std::get<1>(it);
+          if (llvm::range_size(init.getUsers()) > 1) {
+            mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
+            auto align =
+                b.create<mlir::taffo::AlignOp>(parent.getLoc(), resType, init);
+            init.replaceUsesWithIf(align.getResult(),
+                                   [parent](mlir::OpOperand &U) {
+                                     return U.getOwner() == parent;
+                                   });
+          } else {
+            init.setType(resType);
+          }
         }
 
         return mlir::WalkResult::advance();
