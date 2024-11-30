@@ -8,8 +8,8 @@
     %z = taffo.cast2real %cst1, 1.000000e-01, 0.0, 1.0 : f32 -> !taffo.real
 
     %0 = taffo.cast2real %cst0, 1.000000e-01, 0.0, 1.0 : f32 -> !taffo.real
-    %1 = taffo.cast2real %cst1, 1.000000e-01, 0.0, 1.0 : f32 -> !taffo.real
-    %neg1 = taffo.cast2real %cst_neg1, 1.000000e-01, -1.0, 1.0 : f32 -> !taffo.real
+    %1 = taffo.cast2real %cst1, 1.000000e-01, 1.0, 1.0 : f32 -> !taffo.real
+    %neg1 = taffo.cast2real %cst_neg1, 1.000000e-01, -1.0, -1.0 : f32 -> !taffo.real
     %half = taffo.cast2real %cst_half, 1.000000e-01, 0.0, 1.0 : f32 -> !taffo.real
 
     %cmp1 = arith.cmpf ult, %cst1, %cst_half : f32

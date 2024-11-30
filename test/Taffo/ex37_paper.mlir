@@ -4,7 +4,7 @@ func.func @sum() -> (f32) {
   %lb = arith.constant 0 : index
 
   // upper bound
-  %ub = arith.constant 2 : index
+  %ub = arith.constant 3 : index
 
   //step
   %step = arith.constant 1 : index
@@ -13,7 +13,7 @@ func.func @sum() -> (f32) {
   //Define constant
   %a = arith.constant -0.75: f32
   
-  %x = arith.constant 0.5: f32
+  %x = arith.constant 0.0: f32
 
   //Convert to taffo.real
   %r_a = taffo.cast2real %a, 0.1, -0.75, -0.75 : f32 -> !taffo.real

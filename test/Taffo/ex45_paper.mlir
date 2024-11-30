@@ -8,13 +8,13 @@ func.func @main() {
     %lb = arith.constant 0 : index
 
     // upper bound
-    %ub = arith.constant 5 : index
+    %ub = arith.constant 4 : index
 
     //step
     %step = arith.constant 1 : index
     
     %xn = taffo.cast2real %c0, 0.1, 0.0, 1.0 : f32 -> !taffo.real
-    %xnm1 = taffo.cast2real %c0, 0.1, 0.0, 1.0 : f32 -> !taffo.real
+    %xnm1 = taffo.cast2real %c0, 0.1, 0.0, 0.0 : f32 -> !taffo.real
     %xnp1 = taffo.cast2real %c0, 0.1, 0.0, 1.0 : f32 -> !taffo.real
 
     %r_c1_2 = taffo.cast2real %c1_2, 0.1, 1.2, 1.2 : f32 -> !taffo.real
@@ -32,10 +32,13 @@ func.func @main() {
         %tmp1 = taffo.mult %r_c1_2, %ac_xn : (!taffo.real, !taffo.real) -> !taffo.real
         %tmp2 = taffo.mult %r_c0_8, %ac_xnm1 : (!taffo.real, !taffo.real) -> !taffo.real
         %xnp1_next = taffo.add %tmp1, %tmp2 : (!taffo.real, !taffo.real) -> !taffo.real
-                                        
+
+        %res = taffo.cast2float %xnp1_next : !taffo.real -> f32
+
         scf.yield %xnp1_next, %ac_xn : !taffo.real, !taffo.real
 
     }
+
     
     return
 }
