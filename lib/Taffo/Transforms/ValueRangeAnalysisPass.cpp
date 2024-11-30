@@ -71,15 +71,18 @@ public:
       // Select the smallets range of the two based on their radius
       TaffoValueRange::NtvRange ntvRange = opNtvRange->getValue().getValue();
       auto affineRange = opAffineRange->getValue().getValue().get_range();
-      std::unique_ptr<LibAffine::Range> final_range;
-      if (affineRange.get_radius() <
-          (ntvRange.second - ntvRange.first) / (llvm::APFloat)2.0) {
-        final_range = std::make_unique<LibAffine::Range>(affineRange.start,
-                                                         affineRange.end);
-      } else {
-        final_range =
-            std::make_unique<LibAffine::Range>(ntvRange.first, ntvRange.second);
-      }
+      std::unique_ptr<LibAffine::Range> final_range =
+          std::make_unique<LibAffine::Range>(ntvRange.first, ntvRange.second);
+      ;
+      // if (affineRange.get_radius() <
+      //     (ntvRange.second - ntvRange.first) / (llvm::APFloat)2.0) {
+      //   final_range = std::make_unique<LibAffine::Range>(affineRange.start,
+      //                                                    affineRange.end);
+      // } else {
+      //   final_range =
+      //       std::make_unique<LibAffine::Range>(ntvRange.first,
+      //       ntvRange.second);
+      // }
 
       bool signd =
           final_range->start.isNegative() || final_range->end.isNegative();
@@ -182,11 +185,20 @@ public:
       RealType resType = std::get<1>(it);
       if (llvm::range_size(init.getUsers()) > 1) {
         mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
+        // Get the RealType from init
+        auto initType = init.getType().cast<RealType>();
+        int maxExp = std::max(resType.getExponent(), initType.getExponent());
+        int maxBitwidth =
+            std::max(resType.getBitwidth(), initType.getBitwidth());
+        auto finalType = RealType::get(init.getContext(), resType.getSignd(),
+                                       maxExp, maxBitwidth);
+        // if (resType.getExponent() < initType.getExponent()) {
         auto align =
             b.create<mlir::taffo::AlignOp>(parent.getLoc(), resType, init);
         init.replaceUsesWithIf(align.getResult(), [parent](mlir::OpOperand &U) {
           return U.getOwner() == parent;
         });
+        // }
       } else {
         init.setType(resType);
       }
