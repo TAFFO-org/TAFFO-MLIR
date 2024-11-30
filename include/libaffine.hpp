@@ -122,8 +122,6 @@ public:
 
   // define the join operation on two affine variables
   Var join(const Var &b) const {
-    // assert((this->is_subset_of(b) || b.is_subset_of(*this)) &&
-    //        "The forms are not in generic position");
     Var result;
     result.c_value = range_union_midpoint(b);
     std::set_intersection(noise_symbol_index.begin(), noise_symbol_index.end(),
@@ -131,32 +129,21 @@ public:
                           b.noise_symbol_index.end(),
                           std::back_inserter(result.noise_symbol_index));
 
-    for (unsigned int i = 0; i < result.noise_symbol_index.size(); ++i) {
-
-      auto min =
-          llvm::minimum(noise_symbol_coeffs[i], b.noise_symbol_coeffs[i]);
-      auto max =
-          llvm::maximum(noise_symbol_coeffs[i], b.noise_symbol_coeffs[i]);
-
-      if (min.isNegative() && !max.isNegative()) {
-        result.noise_symbol_coeffs.push_back(llvm::APFloat(0.0));
+    for (auto i : result.noise_symbol_index) {
+      if (lookup_noise_symbol_coeff(i) == b.lookup_noise_symbol_coeff(i)) {
+        result.noise_symbol_coeffs.push_back(lookup_noise_symbol_coeff(i));
       } else {
-        // pick the smallest abs value
-        if (llvm::abs(min) <= llvm::abs(max)) {
-          result.noise_symbol_coeffs.push_back(min);
-        } else {
-          result.noise_symbol_coeffs.push_back(max);
-        }
+        result.noise_symbol_coeffs.push_back(llvm::APFloat(0.0));
       }
     }
     // Calcluate the supremum of the union two ranges
     auto sup = llvm::maximum(get_range().end, b.get_range().end);
     // calculate purtrubation term
     result.beta = sup - result.c_value - result.abs_coeff_sum();
-    // if (!result.beta.isZero() && !result.beta.isNaN() &&
-    //     !result.beta.isInfinity())
-    //   // Shift the union noise symbol to regualr noise symbols
-    //   result = !result;
+    if (!result.beta.isZero() && !result.beta.isNaN() &&
+        !result.beta.isInfinity())
+      // Shift the union noise symbol to regualr noise symbols
+      result = !result;
     return result;
   }
 
