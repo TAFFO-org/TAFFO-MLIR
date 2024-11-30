@@ -38,6 +38,15 @@ private:
   std::vector<llvm::APFloat> noise_symbol_coeffs; // noise symbol coefficients
   std::vector<unsigned int> noise_symbol_index;   // noise symbol coefficients
   llvm::APFloat beta = llvm::APFloat(0.0);        // perturbation term
+  inline llvm::APFloat
+  lookup_noise_symbol_coeff(unsigned int symbol_number) const {
+    for (unsigned int i = 0; i < noise_symbol_index.size(); i++) {
+      if (noise_symbol_index[i] == symbol_number) {
+        return noise_symbol_coeffs[i];
+      }
+    }
+    return llvm::APFloat(0.0);
+  }
 
 public:
   Var(Range range) {
