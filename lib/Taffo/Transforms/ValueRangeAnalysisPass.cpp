@@ -73,16 +73,6 @@ public:
       auto affineRange = opAffineRange->getValue().getValue().get_range();
       std::unique_ptr<LibAffine::Range> final_range =
           std::make_unique<LibAffine::Range>(ntvRange.first, ntvRange.second);
-      ;
-      // if (affineRange.get_radius() <
-      //     (ntvRange.second - ntvRange.first) / (llvm::APFloat)2.0) {
-      //   final_range = std::make_unique<LibAffine::Range>(affineRange.start,
-      //                                                    affineRange.end);
-      // } else {
-      //   final_range =
-      //       std::make_unique<LibAffine::Range>(ntvRange.first,
-      //       ntvRange.second);
-      // }
 
       bool signd =
           final_range->start.isNegative() || final_range->end.isNegative();
