@@ -44,10 +44,18 @@ public:
     // LLVM_DEBUG(llvm::dbgs()
     //            << "Joining ranges: " << lhs.getValue().print_affine_form()
     //            << " and " << rhs.getValue().print_affine_form() << "\n");
-    // LLVM_DEBUG(llvm::dbgs()
-    //            << "Joined range: "
-    //            << lhs.getValue().join(rhs.getValue()).print_affine_form()
-    //            << "\n");
+    // LLVM_DEBUG(
+    //     llvm::dbgs()
+    //     << "Joined range: "
+    //     << lhs.getValue().join(rhs.getValue()).print_affine_form() << "\n["
+    //     << lhs.getValue()
+    //            .join(rhs.getValue())
+    //            .get_range()
+    //            .start.convertToDouble()
+    //     << ","
+    //     <<
+    //     lhs.getValue().join(rhs.getValue()).get_range().end.convertToDouble()
+    //     << "]\n");
     return TaffoAffineValueRange{lhs.getValue().join(rhs.getValue())};
   }
 
