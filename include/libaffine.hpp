@@ -291,8 +291,8 @@ public:
     result.noise_symbol_coeffs.push_back(sum_noise_mult);
 
     // calculate perturbation term
-    result.beta =
-        abs_coeff_sum() * b.beta + b.abs_coeff_sum() * beta + beta * b.beta;
+    result.beta = (abs_coeff_sum() + c_value) * b.beta +
+                  (b.abs_coeff_sum() + b.c_value) * beta + beta * b.beta;
     return result;
   }
 
