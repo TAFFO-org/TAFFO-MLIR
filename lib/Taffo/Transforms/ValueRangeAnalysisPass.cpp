@@ -173,24 +173,36 @@ public:
     for (auto it : llvm::zip(inits, resTypes)) {
       mlir::Value init = std::get<0>(it);
       RealType resType = std::get<1>(it);
-      if (llvm::range_size(init.getUsers()) > 1) {
-        mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
-        // Get the RealType from init
-        auto initType = init.getType().cast<RealType>();
-        int maxExp = std::max(resType.getExponent(), initType.getExponent());
-        int maxBitwidth =
-            std::max(resType.getBitwidth(), initType.getBitwidth());
-        auto finalType = RealType::get(init.getContext(), resType.getSignd(),
-                                       maxExp, maxBitwidth);
-        // if (resType.getExponent() < initType.getExponent()) {
+      auto initType = init.getType().cast<RealType>();
+      if (resType.getExponent() < initType.getExponent() ||
+          resType.getBitwidth() < initType.getBitwidth()) {
+        if (llvm::range_size(init.getUsers()) > 1) {
+          mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
+          auto align =
+              b.create<mlir::taffo::AlignOp>(parent.getLoc(), resType, init);
+          init.replaceUsesWithIf(
+              align.getResult(),
+              [parent](mlir::OpOperand &U) { return U.getOwner() == parent; });
+        } else {
+          init.setType(resType);
+        }
+      }
+    }
+
+    // Align yield operands if their exponent is smaller than the inits
+    for (auto it : llvm::zip(results, inits)) {
+      mlir::Value result = std::get<0>(it);
+      mlir::Value init = std::get<1>(it);
+      auto resultType = result.getType().cast<RealType>();
+      auto initType = init.getType().cast<RealType>();
+      if (resultType.getExponent() < initType.getExponent() ||
+          resultType.getBitwidth() < initType.getBitwidth()) {
+        mlir::OpBuilder b = mlir::OpBuilder(op, nullptr);
         auto align =
-            b.create<mlir::taffo::AlignOp>(parent.getLoc(), resType, init);
-        init.replaceUsesWithIf(align.getResult(), [parent](mlir::OpOperand &U) {
-          return U.getOwner() == parent;
+            b.create<mlir::taffo::AlignOp>(op->getLoc(), initType, result);
+        result.replaceUsesWithIf(align.getResult(), [op](mlir::OpOperand &U) {
+          return U.getOwner() == op;
         });
-        // }
-      } else {
-        init.setType(resType);
       }
     }
   }
