@@ -12,8 +12,11 @@ bool operator==(const Var &a, const Var &b) {
   if (a.c_value.isNaN() && b.c_value.isNaN())
     return true;
 
-  if (a.get_range().start == b.get_range().start &&
-      a.get_range().end == b.get_range().end)
+  llvm::APFloat epsilon(llvm::APFloat::IEEEdouble(), "1e-6");
+  llvm::APFloat diff_start = a.get_range().start - b.get_range().start;
+  llvm::APFloat diff_end = a.get_range().end - b.get_range().end;
+  if (diff_start.compare(epsilon) <= llvm::APFloat::cmpEqual &&
+      diff_end.compare(epsilon) <= llvm::APFloat::cmpEqual)
     return true;
 
   return false;
