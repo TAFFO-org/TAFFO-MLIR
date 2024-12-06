@@ -48,7 +48,7 @@ public:
 
       if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
           llvm::isa<CastToFloatOp>(op)) {
-        LLVM_DEBUG(llvm::dbgs() << "Skipping op: " << *op << "\n");
+        // LLVM_DEBUG(llvm::dbgs() << "Skipping op: " << *op << "\n");
         return mlir::WalkResult::advance();
       }
       // Lookup the range of the operation in Ntv Lattice
@@ -135,9 +135,6 @@ public:
     auto getMSB = [](RealType t) { return t.getBitwidth() + t.getExponent(); };
 
     auto results = op->getOperands();
-    for (auto res : results) {
-      LLVM_DEBUG(llvm::dbgs() << "operands: " << res << "\n");
-    }
     if (llvm::range_size(results) == 0) {
       return;
     }
@@ -156,8 +153,8 @@ public:
       RealType resType = llvm::dyn_cast<RealType>(result.getType());
       RealType initType = init.getType().cast<RealType>();
       if (getMSB(resType) > getMSB(initType)) {
-        LLVM_DEBUG(llvm::dbgs()
-                   << "Aligning " << init << " to " << resType << "\n");
+        // LLVM_DEBUG(llvm::dbgs()
+        //            << "Aligning " << init << " to " << resType << "\n");
         if (llvm::range_size(init.getUsers()) > 1) {
           mlir::OpBuilder b = mlir::OpBuilder(parent, nullptr);
           auto align =
@@ -173,8 +170,8 @@ public:
       // Align yield operands if their range is narrower than the intial values
       else if (getMSB(resType) < getMSB(initType)) {
         if (llvm::range_size(init.getUsers()) > 1) {
-          LLVM_DEBUG(llvm::dbgs()
-                     << "Aligning " << init << " to " << resType << "\n");
+          // LLVM_DEBUG(llvm::dbgs()
+          //            << "Aligning " << init << " to " << resType << "\n");
           mlir::OpBuilder b = mlir::OpBuilder(op, nullptr);
           auto align =
               b.create<mlir::taffo::AlignOp>(op->getLoc(), initType, result);
@@ -194,8 +191,8 @@ public:
       mlir::BlockArgument iterArg = std::get<0>(it);
       RealType resType = llvm::dyn_cast<RealType>(result.getType());
 
-      LLVM_DEBUG(llvm::dbgs() << "setting iterArg type " << std::get<0>(it)
-                              << "to: " << resType << "\n");
+      // LLVM_DEBUG(llvm::dbgs() << "setting iterArg type " << std::get<0>(it)
+      //                         << "to: " << resType << "\n");
 
       iterArg.setType(resType);
     }
@@ -206,8 +203,8 @@ public:
       mlir::Value parentResult = std::get<0>(it);
       RealType resType = llvm::dyn_cast<RealType>(result.getType());
 
-      LLVM_DEBUG(llvm::dbgs() << "setting parent type " << std::get<0>(it)
-                              << "to: " << resType << "\n");
+      // LLVM_DEBUG(llvm::dbgs() << "setting parent type " << std::get<0>(it)
+      //                         << "to: " << resType << "\n");
       parentResult.setType(resType);
     }
   }
