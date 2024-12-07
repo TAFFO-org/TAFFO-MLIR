@@ -48,13 +48,12 @@ public:
 
       auto loop = llvm::dyn_cast<mlir::LoopLikeOpInterface>(op);
       if (loop) {
-        adaptToBitwidth(loop.getRegionIterArgs().front());
-        adaptToBitwidth(loop.getInits().front());
-        adaptToBitwidth(loop->getResults().front());
+        handleLoop(loop);
       } else {
-        adaptToBitwidth(op->getResult(0));
+        for (auto result : op->getResults()) {
+          adaptToBitwidth(result);
+        }
       }
-
       return mlir::WalkResult::advance();
     });
 
@@ -124,6 +123,18 @@ public:
 
     if (result2.wasInterrupted())
       signalPassFailure();
+  }
+
+  void handleLoop(mlir::LoopLikeOpInterface &loop) {
+    for (auto arg : loop.getRegionIterArgs()) {
+      adaptToBitwidth(arg);
+    }
+    for (auto init : loop.getInits()) {
+      adaptToBitwidth(init);
+    }
+    for (auto result : loop->getResults()) {
+      adaptToBitwidth(result);
+    }
   }
 };
 } // namespace mlir
