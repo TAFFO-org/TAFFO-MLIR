@@ -23,6 +23,18 @@ private:
 public:
   using DatatypeOptimizationPassBase::DatatypeOptimizationPassBase;
 
+  void adaptToBitwidth(Value v) {
+    RealType oldType = ::llvm::dyn_cast<RealType>(v.getType());
+
+    // TODO: add NaN/Inf check on exp
+    int bitwidthDiff = targetBitwidth - oldType.getBitwidth();
+    int newExp = oldType.getExponent() - bitwidthDiff;
+    int newBitwidth = targetBitwidth;
+
+    v.setType(
+        RealType::get(v.getContext(), oldType.getSignd(), newExp, newBitwidth));
+  }
+
   void runOnOperation() override {
     mlir::Operation *module = getOperation();
 
@@ -33,18 +45,6 @@ public:
                         [](Type t) { return llvm::isa<RealType>(t); })) {
         return mlir::WalkResult::advance();
       }
-
-      auto adaptToBitwidth = [](Value v) {
-        RealType oldType = ::llvm::dyn_cast<RealType>(v.getType());
-
-        // TODO: add NaN/Inf check on exp
-        int bitwidthDiff = targetBitwidth - oldType.getBitwidth();
-        int newExp = oldType.getExponent() - bitwidthDiff;
-        int newBitwidth = targetBitwidth;
-
-        v.setType(RealType::get(v.getContext(), oldType.getSignd(), newExp,
-                                newBitwidth));
-      };
 
       auto loop = llvm::dyn_cast<mlir::LoopLikeOpInterface>(op);
       if (loop) {
