@@ -17,6 +17,9 @@ namespace mlir {
 class DatatypeOptimizationPass
     : public mlir::taffo::impl::DatatypeOptimizationPassBase<
           DatatypeOptimizationPass> {
+private:
+  const int targetBitwidth = 32;
+
 public:
   using DatatypeOptimizationPassBase::DatatypeOptimizationPassBase;
 
@@ -24,7 +27,6 @@ public:
     mlir::Operation *module = getOperation();
 
     // this will become a parameter captured from pass invocation at some point
-    const int targetBitwidth = 32;
 
     auto result = module->walk([&](mlir::Operation *op) {
       if (llvm::none_of(op->getResultTypes(),
