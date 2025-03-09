@@ -37,16 +37,25 @@ LogicalResult CastToRealOp::verify() {
 
   // need support for other ConstantLike-s?
   auto const_op =
-      ::llvm::dyn_cast<arith::ConstantOp>(getFrom().getDefiningOp());
+      ::llvm::dyn_cast_or_null<arith::ConstantOp>(getFrom().getDefiningOp());
 
-  auto from = ::llvm::dyn_cast<FloatAttr>(const_op.getValue()).getValue();
+  if (const_op) {
+    auto from = ::llvm::dyn_cast<FloatAttr>(const_op.getValue()).getValue();
 
-  bool is_eq = std::islessequal(
-      from.convertToDouble() - getMax().convertToDouble(), 1e-4);
-  if (getMin() == getMax() && !is_eq) {
-    emitOpError(
-        "Lower bound and upper bound coincide but are not equal to $from");
-    return failure();
+    bool is_eq = std::islessequal(
+        from.convertToDouble() - getMax().convertToDouble(), 1e-4);
+    if (getMin() == getMax() && !is_eq) {
+      emitOpError(
+          "Lower bound and upper bound coincide but are not equal to $from");
+      return failure();
+    }
+  } else {
+    // Handle non-constant "from" values (e.g., args or function call results)
+    if (getMin() == getMax()) {
+      emitOpError("Lower bound and upper bound coincide but $from is not a "
+                  "constant and cannot be verified");
+      return failure();
+    }
   }
 
   return success();
