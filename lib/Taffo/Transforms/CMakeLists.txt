@@ -6,6 +6,7 @@ add_mlir_dialect_library(MLIRTaffoTransforms
         LowerToArithPass.cpp
         DatatypeOptimizationPass.cpp
         libaffine.cpp
+        RaiseToTaffoPass.cpp
         #ADDITIONAL_HEADER_DIRS
         #${PROJECT_SOURCE_DIR}/include/Taffo
 

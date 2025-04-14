@@ -3,6 +3,22 @@
 
 include "mlir/Pass/PassBase.td"
 
+def RaiseToTaffoPass
+    : Pass<"raise-to-taffo">
+{
+    let summary = "Raise scf and Arith ops to Taffo dialect.";
+
+    let description = [{
+        Raise scf and Arith ops generated from Polygeist to Taffo dialect.
+    }];
+
+    let dependentDialects = [
+        "mlir::scf::SCFDialect",
+        "mlir::arith::ArithDialect",
+        "mlir::taffo::TaffoDialect"
+    ];
+
+}
 def ValueRangeAnalysisPass
     : Pass<"value-range-analysis">
 {
