@@ -127,10 +127,7 @@ public:
             loc, return_type, input, precision, min, max);
         LLVM_DEBUG(llvm::dbgs() << "Created cast2real:" << cast2real << "\n");
 
-        input.replaceUsesWithIf(cast2real, [&](OpOperand &operand) {
-          return operand.getOwner() != cast2real.getOperation();
-        });
-        rewriter.eraseOp(op);
+        rewriter.replaceOp(op, cast2real.getResult());
         return success();
       }
       return failure();
