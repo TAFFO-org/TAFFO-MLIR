@@ -41,7 +41,7 @@ TaffoValueRange TaffoValueRange::getMaxRange(Value value) {
 }
 
 static int64_t estimateTripCount(Operation *op) {
-  const int64_t defaultTripCount = 1000;
+  const int64_t defaultTripCount = 100;
 
   auto forOp = dyn_cast<scf::ForOp>(op);
 
