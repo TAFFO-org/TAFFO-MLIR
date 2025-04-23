@@ -9,7 +9,10 @@ endif()
 project(standalone-dialect LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
-add_link_options("-fuse-ld=lld")
+add_link_options(-fuse-ld=lld -fsanitize=address)
+add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+
+
 
 find_package(MLIR REQUIRED CONFIG)
 
