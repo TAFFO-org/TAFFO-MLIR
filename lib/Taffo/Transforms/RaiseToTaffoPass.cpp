@@ -4,6 +4,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Visitors.h"
@@ -88,7 +89,7 @@ public:
     LogicalResult matchAndRewrite(func::CallOp op,
                                   PatternRewriter &rewriter) const override {
 
-      if (op.getCallee() == "set_range") {
+      if (op.getCallee().contains("set_range")) {
         // Create a taffo.cast2real operation
         OpBuilder builder(op);
         auto loc = op.getLoc();
@@ -211,8 +212,8 @@ public:
 
       auto funcType = function.getFunctionType();
       auto resultTypes = funcType.getResults();
-      // If the number of return operands doesn't match the function signature,
-      // bail out (or handle differently if your IR can mismatch).
+      // If the number of return operands doesn't match the function
+      // signature, bail out (or handle differently if your IR can mismatch).
       if (op.getNumOperands() != resultTypes.size())
         return failure();
 
@@ -417,10 +418,13 @@ public:
     // dialect conversion driver
     RewritePatternSet patterns(&getContext());
     patterns.add<RewriteSetRangeCall>(patterns.getContext());
+    patterns.add<RewriteFor>(patterns.getContext());
     patterns.add<RewriteArithAddOp>(patterns.getContext());
     patterns.add<RewriteArithMulOp>(patterns.getContext());
-    // patterns.add<InsertCast2FloatReturnOp>(patterns.getContext());
-    // patterns.add<InsertCast2FloatFuncCallOp>(patterns.getContext());
+    patterns.add<InsertCast2FloatReturnOp>(patterns.getContext());
+    patterns.add<InsertCast2FloatFuncCallOp>(patterns.getContext());
+    patterns.add<RewriteIfOp>(patterns.getContext());
+    // patterns.add<RewriteYieldOp>(patterns.getContext());
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
   }
 };
