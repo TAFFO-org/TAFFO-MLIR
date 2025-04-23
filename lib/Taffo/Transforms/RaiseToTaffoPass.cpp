@@ -28,6 +28,60 @@ class RaiseToTaffoPass
     : public mlir::taffo::impl::RaiseToTaffoPassBase<RaiseToTaffoPass> {
 public:
   using RaiseToTaffoPassBase::RaiseToTaffoPassBase;
+
+  struct RewriteFor : public OpRewritePattern<scf::ForOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(scf::ForOp forOp,
+                                  PatternRewriter &rewriter) const override {
+      // Skip for-ops that have already been processed.
+      if (forOp->getAttr("taffo.rewritten"))
+        return failure();
+
+      auto &bodyBlock = forOp.getRegion().front();
+      auto context = rewriter.getContext();
+      bool changed = false;
+      // Update the types of the block arguments.
+      for (auto arg : bodyBlock.getArguments()) {
+        if (arg.getType().isF32()) {
+          arg.setType(taffo::RealType::get(context, false, 0, 0));
+          changed = true;
+        }
+      }
+      // Update the result types of the for-loop if needed.
+      SmallVector<Type, 4> newResultTypes;
+      for (auto res : forOp.getResults()) {
+        if (res.getType().isF32()) {
+          newResultTypes.push_back(taffo::RealType::get(context, false, 0, 0));
+          changed = true;
+        } else {
+          newResultTypes.push_back(res.getType());
+        }
+      }
+      if (changed) {
+        // Create a new scf.for op with the updated result types.
+        auto newForOp = rewriter.create<scf::ForOp>(
+            forOp.getLoc(), forOp.getLowerBound(), forOp.getUpperBound(),
+            forOp.getStep(), forOp.getOperands().drop_front(3),
+            [&](OpBuilder &builder, Location loc, Value iv,
+                ValueRange iterArgs) {
+              // empty lambda; the body will be replaced below.
+            });
+        // Tag the new op to avoid re-matching.
+        newForOp->setAttr("taffo.rewritten", rewriter.getUnitAttr());
+        // Transfer the body from the old op to the new op.
+        newForOp.getRegion().takeBody(forOp.getRegion());
+        for (auto it : llvm::enumerate(newForOp.getResults())) {
+          it.value().setType(newResultTypes[it.index()]);
+        }
+        // Replace the old op with the new op's results.
+        rewriter.replaceOp(forOp, newForOp.getResults());
+      }
+
+      return success(changed);
+    }
+  };
+
   struct RewriteSetRangeCall : public OpRewritePattern<func::CallOp> {
     using OpRewritePattern::OpRewritePattern;
 
