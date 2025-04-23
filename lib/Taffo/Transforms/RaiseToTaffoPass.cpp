@@ -288,6 +288,78 @@ public:
     }
   };
 
+  struct RewriteYieldOp : public OpRewritePattern<scf::YieldOp> {
+    using OpRewritePattern::OpRewritePattern;
+    LogicalResult matchAndRewrite(scf::YieldOp op,
+                                  PatternRewriter &rewriter) const override {
+      SmallVector<Value> newOperands;
+      bool changed = false;
+      for (auto operand : op.getOperands()) {
+        if (operand.getType().isF32()) {
+          auto loc = op.getLoc();
+          auto context = rewriter.getContext();
+          auto newType = taffo::RealType::get(context, false, 0, 0);
+          auto precision = rewriter.getF32FloatAttr(0.0);
+          auto min = rewriter.getF32FloatAttr(0.0);
+          auto max = rewriter.getF32FloatAttr(0.0);
+          auto castOp = rewriter.create<taffo::CastToRealOp>(
+              loc, newType, operand, precision, min, max);
+          newOperands.push_back(castOp.getResult());
+          changed = true;
+        } else {
+          newOperands.push_back(operand);
+        }
+      }
+      if (!changed)
+        return failure();
+      rewriter.startOpModification(op);
+      op->setOperands(newOperands);
+      rewriter.finalizeOpModification(op);
+      return success();
+    }
+  };
+
+  struct RewriteIfOp : public OpRewritePattern<scf::IfOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(scf::IfOp ifOp,
+                                  PatternRewriter &rewriter) const override {
+      // Skip if already processed.
+      if (ifOp->getAttr("taffo.rewritten"))
+        return failure();
+
+      auto loc = ifOp.getLoc();
+      bool changed = false;
+      SmallVector<Type, 4> newResultTypes;
+      for (auto res : ifOp.getResults()) {
+        if (res.getType().isF32()) {
+          newResultTypes.push_back(
+              taffo::RealType::get(rewriter.getContext(), false, 0, 0));
+          changed = true;
+        } else {
+          newResultTypes.push_back(res.getType());
+        }
+      }
+      if (!changed)
+        return failure();
+
+      // Create a new if op with updated result types.
+      auto newIfOp =
+          rewriter.create<scf::IfOp>(loc, newResultTypes, ifOp.getCondition());
+      newIfOp->setAttr("taffo.rewritten", rewriter.getUnitAttr());
+      // Transfer the then region.
+      newIfOp.getThenRegion().takeBody(ifOp.getThenRegion());
+      // Transfer the else region if it exists.
+
+      newIfOp.getElseRegion().takeBody(ifOp.getElseRegion());
+      // Set the new result types.
+      for (auto it : llvm::enumerate(newIfOp.getResults()))
+        it.value().setType(newResultTypes[it.index()]);
+      // Replace the old op with the new op's results.
+      rewriter.replaceOp(ifOp, newIfOp.getResults());
+      return success();
+    }
+  };
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
