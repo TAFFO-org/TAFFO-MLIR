@@ -193,7 +193,7 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
   if (dyn_cast<LoopLikeOpInterface>(op)) {
     auto search = loops.find(op);
     // new loop found
-    if (search == loops.end() &&
+    if (search == loops.end() && op->getNumResults() > 0 &&
         llvm::isa<taffo::RealType>(op->getResultTypes().front())) {
       loops.insert(std::make_pair(op, estimateTripCount(op)));
       LLVM_DEBUG(llvm::dbgs()
