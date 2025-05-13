@@ -200,6 +200,32 @@ public:
     }
   };
 
+  struct RewriteArithDivOp : public OpRewritePattern<arith::DivFOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(arith::DivFOp op,
+                                  PatternRewriter &rewriter) const override {
+      auto loc = op.getLoc();
+      auto input1 = op.getOperand(0);
+      auto input2 = op.getOperand(1);
+
+      // Only perform the rewrite if all the arguments of the op are of type
+      // taffo::RealType.
+      if (!input1.getType().isa<taffo::RealType>() ||
+          !input2.getType().isa<taffo::RealType>())
+        return failure();
+
+      auto returnType =
+          taffo::RealType::get(rewriter.getContext(), false, 0, 0);
+      // Create a taffo.div operation.
+      auto divOp =
+          rewriter.create<taffo::DivOp>(loc, returnType, input1, input2);
+
+      rewriter.replaceOp(op, divOp.getResult());
+      return success();
+    }
+  };
+
   struct InsertCast2FloatReturnOp : public OpRewritePattern<func::ReturnOp> {
     using OpRewritePattern::OpRewritePattern;
 
@@ -421,6 +447,7 @@ public:
     patterns.add<RewriteFor>(patterns.getContext());
     patterns.add<RewriteArithAddOp>(patterns.getContext());
     patterns.add<RewriteArithMulOp>(patterns.getContext());
+    patterns.add<RewriteArithDivOp>(patterns.getContext());
     patterns.add<InsertCast2FloatReturnOp>(patterns.getContext());
     patterns.add<InsertCast2FloatFuncCallOp>(patterns.getContext());
     patterns.add<RewriteIfOp>(patterns.getContext());
