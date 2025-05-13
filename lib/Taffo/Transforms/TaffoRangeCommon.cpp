@@ -52,6 +52,25 @@ NtvRange inferMult(ArrayRef<NtvRange> argRanges) {
 }
 
 template <>
+NtvRange inferDiv(ArrayRef<NtvRange> argRanges) {
+  assert(argRanges[0].first <= argRanges[0].second &&
+         "Upper bound and lower bound of this range are inverted");
+  assert(argRanges[1].first <= argRanges[1].second &&
+         "Upper bound and lower bound of this range are inverted");
+  // Prevent division by a range that spans zero
+  assert(!(argRanges[1].first <= APFloat(0.0) &&
+           argRanges[1].second >= APFloat(0.0)) &&
+         "Division by zero detected");
+
+  APFloat a0b0 = argRanges[0].first / argRanges[1].first;
+  APFloat a0b1 = argRanges[0].first / argRanges[1].second;
+  APFloat a1b0 = argRanges[0].second / argRanges[1].first;
+  APFloat a1b1 = argRanges[0].second / argRanges[1].second;
+
+  return std::minmax({a0b0, a0b1, a1b0, a1b1});
+}
+
+template <>
 NtvRange inferSub(ArrayRef<NtvRange> argRanges) {
   assert(argRanges[0].first <= argRanges[0].second &&
          "Upper bound and lower bound of this range are inverted");
@@ -99,6 +118,20 @@ Var inferMult(ArrayRef<Var> argRanges) {
          "Upper bound and lower bound of this range are inverted");
 
   return argRanges[0] * argRanges[1];
+}
+
+template <>
+Var inferDiv(ArrayRef<Var> argRanges) {
+  assert(argRanges[0].get_range().start <= argRanges[0].get_range().end &&
+         "Upper bound and lower bound of this range are inverted");
+  assert(argRanges[1].get_range().start <= argRanges[1].get_range().end &&
+         "Upper bound and lower bound of this range are inverted");
+  // Prevent division by a range that spans zero
+  auto denom = argRanges[1].get_range();
+  assert(!(denom.start <= APFloat(0.0) && denom.end >= APFloat(0.0)) &&
+         "Division by zero detected");
+
+  return argRanges[0] / argRanges[1];
 }
 
 template <>

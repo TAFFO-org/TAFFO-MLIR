@@ -16,7 +16,7 @@ class Range {
 public:
   llvm::APFloat start;
   llvm::APFloat end;
-  Range(llvm::APFloat start, llvm::APFloat end) : start(start), end(end){};
+  Range(llvm::APFloat start, llvm::APFloat end) : start(start), end(end) {};
   llvm::APFloat get_central_value() {
     return (start + end) / (llvm::APFloat)2.0;
   };
@@ -306,6 +306,56 @@ public:
     return result;
   }
 
+  Var operator/(const Var &b) const {
+    Var result;
+    result.c_value = c_value / b.c_value;
+    std::set_union(noise_symbol_index.begin(), noise_symbol_index.end(),
+                   b.noise_symbol_index.begin(), b.noise_symbol_index.end(),
+                   std::back_inserter(result.noise_symbol_index));
+
+    unsigned int index_ida = 0;
+    unsigned int index_idb = 0;
+    for (auto i : result.noise_symbol_index) {
+      if (index_ida >= noise_symbol_index.size() ||
+          noise_symbol_index[index_ida] != i) {
+        result.noise_symbol_coeffs.push_back(-c_value /
+                                             (b.c_value * b.c_value) *
+                                             b.noise_symbol_coeffs[index_idb]);
+        index_idb++;
+        continue;
+      }
+      if (index_idb >= b.noise_symbol_index.size() ||
+          b.noise_symbol_index[index_idb] != i) {
+        result.noise_symbol_coeffs.push_back(noise_symbol_coeffs[index_ida] /
+                                             b.c_value);
+        index_ida++;
+        continue;
+      }
+      result.noise_symbol_coeffs.push_back(
+          (noise_symbol_coeffs[index_ida] * b.c_value -
+           c_value * b.noise_symbol_coeffs[index_idb]) /
+          (b.c_value * b.c_value));
+      index_ida++;
+      index_idb++;
+    }
+
+    // calculate perturbation term
+    result.beta = (abs_coeff_sum() + c_value) * b.beta +
+                  (b.abs_coeff_sum() + b.c_value) * beta + beta * b.beta;
+    return result;
+  }
+
+  Var operator/(const llvm::APFloat b) const {
+    Var result;
+    result.c_value = c_value / b;
+    for (auto i : noise_symbol_coeffs)
+      result.noise_symbol_coeffs.push_back(i / b);
+
+    // calculate perturbation term
+    result.beta = beta / b;
+    return result;
+  }
+
   Var operator!() const {
     Var result;
     result.c_value = c_value;
@@ -330,6 +380,8 @@ extern Var operator+(const llvm::APFloat b, const Var var);
 extern Var operator-(const llvm::APFloat b, const Var var);
 
 extern Var operator*(const llvm::APFloat b, const Var var);
+
+extern Var operator/(const llvm::APFloat b, const Var var);
 
 extern bool operator==(const Var &a, const Var &b);
 

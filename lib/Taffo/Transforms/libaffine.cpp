@@ -8,6 +8,8 @@ Var operator-(const llvm::APFloat b, const Var var) { return -var + b; }
 
 Var operator*(const llvm::APFloat b, const Var var) { return var * b; }
 
+Var operator/(const llvm::APFloat b, const Var var) { return var / b; }
+
 bool operator==(const Var &a, const Var &b) {
   if (a.c_value.isNaN() && b.c_value.isNaN())
     return true;

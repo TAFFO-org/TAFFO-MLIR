@@ -24,6 +24,9 @@ T inferMult(llvm::ArrayRef<T> argRanges);
 
 template <typename T>
 T inferSub(llvm::ArrayRef<T> argRanges);
+
+template <typename T>
+T inferDiv(llvm::ArrayRef<T> argRanges);
 } // namespace mlir::taffo
 
 #endif // TAFFO_TRANSFORMS_TAFFORANGECOMMON_H
