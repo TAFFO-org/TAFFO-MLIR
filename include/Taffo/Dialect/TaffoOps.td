@@ -127,6 +127,20 @@ def Taffo_SubOp : Taffo_Op<"sub",
                          "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
 }
 
+def Taffo_DivOp : Taffo_Op<"div",
+    [DeclareOpInterfaceMethods<InferTaffoRangeInterface>]> {
+    let summary = "taffo div summary";
+    let description = [{
+        taffo div description
+    }];
+
+    let arguments = (ins TaffoReal:$lhs, TaffoReal:$rhs);
+    let results = (outs TaffoReal:$res);
+
+    let assemblyFormat = "$lhs `,` $rhs attr-dict `:`"
+                         "`(` type($lhs) `,` type($rhs) `)` `->` type($res)";
+}
+
 def Taffo_AlignOp : Taffo_Op<"align"> {
     let summary = "aligns TaffoReal types by shifting the underlying integer";
 

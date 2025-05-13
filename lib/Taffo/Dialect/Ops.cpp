@@ -104,6 +104,11 @@ void MultOp::inferTaffoRanges(llvm::ArrayRef<NtvRange> argRanges,
   setResultRange(getResult(), inferMult(argRanges));
 }
 
+void DivOp::inferTaffoRanges(llvm::ArrayRef<NtvRange> argRanges,
+                             mlir::taffo::SetTaffoRangeFn setResultRange) {
+  setResultRange(getResult(), inferDiv(argRanges));
+}
+
 void SubOp::inferTaffoRanges(llvm::ArrayRef<NtvRange> argRanges,
                              mlir::taffo::SetTaffoRangeFn setResultRange) {
   setResultRange(getResult(), inferSub(argRanges));
@@ -133,6 +138,12 @@ void MultOp::inferTaffoAffineRanges(
     llvm::ArrayRef<Var> argRanges,
     mlir::taffo::SetTaffoAffineRangeFn setResultRange) {
   setResultRange(getResult(), inferMult(argRanges));
+}
+
+void DivOp::inferTaffoAffineRanges(
+    llvm::ArrayRef<Var> argRanges,
+    mlir::taffo::SetTaffoAffineRangeFn setResultRange) {
+  setResultRange(getResult(), inferDiv(argRanges));
 }
 
 void SubOp::inferTaffoAffineRanges(

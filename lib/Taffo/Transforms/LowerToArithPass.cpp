@@ -270,6 +270,113 @@ public:
     }
   };
 
+  template <typename T1, typename T2>
+  static LogicalResult ConvertDivCommon(T1 op, T2 adaptor,
+                                        ConversionPatternRewriter &rewriter) {
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+    RealType resType = ::llvm::dyn_cast<RealType>(op->getResult(0).getType());
+    const int resWidth = resType.getBitwidth();
+    const int ogWidth = resWidth;
+    const int extWidth = resWidth * 2;
+
+    auto buildNarrowAttr = [ogWidth](Builder b, int64_t value) -> IntegerAttr {
+      return b.getIntegerAttr(b.getIntegerType(ogWidth), value);
+    };
+
+    auto buildWideAttr = [extWidth](Builder b, int64_t value) -> IntegerAttr {
+      return b.getIntegerAttr(b.getIntegerType(extWidth), value);
+    };
+
+    Value ogNumerator = op.getLhs();
+    Value ogDenom = op.getRhs();
+    int numExp = getExp(ogNumerator);
+    int denomExp = getExp(ogDenom);
+    Value numerator = adaptor.getLhs();
+    Value denominator = adaptor.getRhs();
+
+    // reconcile arguments of different signedness
+    if (resType.getSignd() && (getSignd(ogNumerator) != getSignd(ogDenom))) {
+      if (!getSignd(ogNumerator)) {
+        numExp += 1;
+        numerator =
+            b.create<arith::ShRUIOp>(
+                 numerator, b.create<arith::ConstantOp>(buildNarrowAttr(b, 1)))
+                .getResult();
+      }
+      if (!getSignd(ogDenom)) {
+        denomExp += 1;
+        denominator = b.create<arith::ShRUIOp>(
+                           denominator,
+                           b.create<arith::ConstantOp>(buildNarrowAttr(b, 1)))
+                          .getResult();
+      }
+    }
+
+    // Extend operands to wide type.
+    numerator =
+        resType.getSignd()
+            ? b.create<arith::ExtSIOp>(b.getIntegerType(extWidth), numerator)
+                  .getResult()
+            : b.create<arith::ExtUIOp>(b.getIntegerType(extWidth), numerator)
+                  .getResult();
+    denominator =
+        resType.getSignd()
+            ? b.create<arith::ExtSIOp>(b.getIntegerType(extWidth), denominator)
+                  .getResult()
+            : b.create<arith::ExtUIOp>(b.getIntegerType(extWidth), denominator)
+                  .getResult();
+
+    // Scale numerator by shifting left to preserve fractional precision.
+    arith::ConstantOp scale_const =
+        b.create<arith::ConstantOp>(buildWideAttr(b, resWidth));
+    Value numerator_scaled =
+        b.create<arith::ShLIOp>(numerator, scale_const).getResult();
+
+    // Perform division.
+    Value res = resType.getSignd()
+                    ? b.create<arith::DivSIOp>(numerator_scaled, denominator)
+                          .getResult()
+                    : b.create<arith::DivUIOp>(numerator_scaled, denominator)
+                          .getResult();
+
+    // Compute correction factor.
+    // Expected effective exponent after division: (numExp - denomExp -
+    // resWidth) We correct by: resType.getExponent() - (numExp - denomExp -
+    // resWidth)
+    int correctionFactor = resType.getExponent() + resWidth - numExp + denomExp;
+
+    if (correctionFactor != 0) {
+      arith::ConstantOp correction_const = b.create<arith::ConstantOp>(
+          buildWideAttr(b, std::abs(correctionFactor)));
+      res = correctionFactor > 0
+                ? (resType.getSignd()
+                       ? b.create<arith::ShRSIOp>(res, correction_const)
+                             .getResult()
+                       : b.create<arith::ShRUIOp>(res, correction_const)
+                             .getResult())
+                : b.create<arith::ShLIOp>(res, correction_const).getResult();
+    }
+
+    // Truncate the result back to narrow type.
+    res = b.create<arith::TruncIOp>(b.getIntegerType(ogWidth), res).getResult();
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+
+  struct ConvertDiv : public OpConversionPattern<DivOp> {
+    ConvertDiv(mlir::MLIRContext *context)
+        : OpConversionPattern<DivOp>(context) {}
+
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(DivOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+      return ConvertDivCommon<DivOp, OpAdaptor>(op, adaptor, rewriter);
+    }
+  };
+
   struct ConvertCastToReal : public OpConversionPattern<CastToRealOp> {
     ConvertCastToReal(mlir::MLIRContext *context)
         : OpConversionPattern<CastToRealOp>(context) {}
@@ -528,14 +635,15 @@ public:
       rewriter.startOpModification(op);
       auto terminator = cast<scf::YieldOp>(body->getTerminator());
       SmallVector<Value> terminatorRes;
-      if(failed(rewriter.getRemappedValues(terminator->getOperands(), terminatorRes)))
+      if (failed(rewriter.getRemappedValues(terminator->getOperands(),
+                                            terminatorRes)))
         return failure();
       rewriter.modifyOpInPlace(terminator,
                                [&] { terminator->setOperands(terminatorRes); });
 
       rewriter.finalizeOpModification(op);
 
-      if(failed(rewriter.convertRegionTypes(&region, *getTypeConverter())))
+      if (failed(rewriter.convertRegionTypes(&region, *getTypeConverter())))
         return failure();
 
       ImplicitLocOpBuilder b(op.getLoc(), rewriter);
@@ -566,9 +674,9 @@ public:
     RewritePatternSet patterns(context);
     TaffoToArithTypeConverter typeConverter(context);
 
-    patterns.add<ConvertAdd, ConvertMult, ConvertCastToReal, ConvertCastToFloat,
-                 ConvertBitcastToInt, ConvertBitcastToReal, ConvertAlign>(
-        typeConverter, context);
+    patterns.add<ConvertAdd, ConvertMult, ConvertDiv, ConvertCastToReal,
+                 ConvertCastToFloat, ConvertBitcastToInt, ConvertBitcastToReal,
+                 ConvertAlign>(typeConverter, context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();
