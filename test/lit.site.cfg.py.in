@@ -1,15 +1,49 @@
 @LIT_SITE_CFG_IN_HEADER@
 
-config.llvm_tools_dir = lit_config.substitute("@LLVM_TOOLS_DIR@")
+import sys
+
+config.host_triple = "@LLVM_HOST_TRIPLE@"
+config.target_triple = "@LLVM_TARGET_TRIPLE@"
+config.llvm_include_dirs = "@LLVM_INCLUDE_DIRS@"
+config.llvm_src_root = "@LLVM_SOURCE_DIR@"
+config.llvm_obj_root = "@LLVM_BINARY_DIR@"
+config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
+config.llvm_libs_dir = "@LLVM_LIBS_DIR@"
+config.llvm_shlib_dir = "@SHLIBDIR@"
+config.llvm_shlib_ext = "@SHLIBEXT@"
+config.llvm_exe_ext = "@EXEEXT@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
-config.mlir_obj_dir = "@MLIR_BINARY_DIR@"
 config.python_executable = "@Python3_EXECUTABLE@"
-config.enable_bindings_python = @MLIR_ENABLE_BINDINGS_PYTHON@
-config.standalone_src_root = "@CMAKE_SOURCE_DIR@"
-config.standalone_obj_root = "@CMAKE_BINARY_DIR@"
+config.gold_executable = "@GOLD_EXECUTABLE@"
+config.ld64_executable = "@LD64_EXECUTABLE@"
+config.enable_shared = @ENABLE_SHARED@
+config.enable_assertions = @ENABLE_ASSERTIONS@
+config.targets_to_build = "@TARGETS_TO_BUILD@"
+config.native_target = "@LLVM_NATIVE_ARCH@"
+config.llvm_bindings = "@LLVM_BINDINGS@".split(' ')
+config.host_os = "@HOST_OS@"
+config.host_cc = "@HOST_CC@"
+config.host_cxx = "@HOST_CXX@"
+config.enable_libcxx = "@LLVM_ENABLE_LIBCXX@"
+# Note: ldflags can contain double-quoted paths, so must use single quotes here.
+config.host_ldflags = '@HOST_LDFLAGS@'
+config.llvm_use_sanitizer = "@LLVM_USE_SANITIZER@"
+config.llvm_host_triple = '@LLVM_HOST_TRIPLE@'
+config.host_arch = "@HOST_ARCH@"
+
+config.taffo_src_root = "@TAFFO_ROOT@"
+
+# Only the source include public directory is considered.
+# The build public one should not be needed. Moreover, specifying more than one directory would require more
+# preprocessing in order to prepend each of them with -I.
+config.taffo_include_dirs = "@TAFFO_INCLUDE_PUBLIC_DIR@"
+
+config.taffo_obj_root = "@TAFFO_BUILD_DIR@"
+config.taffo_tools_dir = "@TAFFO_TOOLS_DIR@"
+config.taffo_libs_dir = "@TAFFO_LIBS_DIR@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
 # Let the main config do the real work.
-lit_config.load_config(config, "@CMAKE_SOURCE_DIR@/test/lit.cfg.py")
+lit_config.load_config(config, os.path.join(config.taffo_src_root, "test/lit.cfg.py"))
