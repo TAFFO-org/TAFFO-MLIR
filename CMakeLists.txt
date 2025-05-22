@@ -45,11 +45,25 @@ include_directories(${PROJECT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
 
-set(LLVM_LIT_ARGS "-sv" CACHE STRING "lit default options")
+set(TAFFO_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 include(sanitizers)
 
 add_subdirectory(include)
 add_subdirectory(lib)
-add_subdirectory(test)
 add_subdirectory(taffo-opt)
+
+#------------------------------------------------------------------------------
+# Tests
+#------------------------------------------------------------------------------
+
+set(LIT_ARGS_DEFAULT "-sv")
+
+if (MSVC_IDE OR XCODE)
+  set(LIT_ARGS_DEFAULT "${LIT_ARGS_DEFAULT} --no-progress-bar")
+endif()
+
+set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
+
+add_subdirectory(test)
