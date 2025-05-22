@@ -3,7 +3,7 @@
 
 include "Taffo/Dialect/Taffo.td"
 include "Taffo/Dialect/TaffoTypes.td"
-include "Taffo/Interfaces/InferTaffoRangeNtvInterface.td"
+include "Taffo/Dialect/OpInterfaces.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 
 include "mlir/Interfaces/InferTypeOpInterface.td"

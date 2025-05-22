@@ -4,7 +4,7 @@
 #include "Taffo/Transforms/NtvRangeAnalysis.h"
 #include "Taffo/Dialect/Ops.h"
 #include "Taffo/Dialect/Taffo.h"
-#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+#include "Taffo/Dialect/OpInterfaces.h"
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"

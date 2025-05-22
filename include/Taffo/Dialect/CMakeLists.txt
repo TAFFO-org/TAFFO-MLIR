@@ -13,6 +13,11 @@ mlir_tablegen(TaffoTypes.h.inc -gen-typedef-decls -typedefs-dialect=taffo)
 mlir_tablegen(TaffoTypes.cpp.inc -gen-typedef-defs -typedefs-dialect=taffo)
 add_public_tablegen_target(MLIRTaffoTypesIncGen)
 
+set(LLVM_TARGET_DEFINITIONS OpInterfaces.td)
+mlir_tablegen(OpInterfaces.h.inc -gen-op-interface-decls)
+mlir_tablegen(OpInterfaces.cpp.inc -gen-op-interface-defs)
+add_public_tablegen_target(MLIRTaffoOpInterfacesIncGen)
+
 set(LLVM_TARGET_DEFINITIONS TaffoOps.td)
 mlir_tablegen(TaffoOps.h.inc -gen-op-decls)
 mlir_tablegen(TaffoOps.cpp.inc -gen-op-defs)
@@ -25,4 +30,5 @@ add_public_tablegen_target(MLIRTaffoIncGen)
 
 add_dependencies(MLIRTaffoIncGen MLIRTaffoAttributesIncGen)
 add_dependencies(MLIRTaffoIncGen MLIRTaffoTypesIncGen)
+add_dependencies(MLIRTaffoIncGen MLIRTaffoOpInterfacesIncGen)
 add_dependencies(MLIRTaffoIncGen MLIRTaffoOpsIncGen)
