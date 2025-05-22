@@ -74,12 +74,12 @@ public:
   /// At an entry point, we cannot reason about value ranges.
   void setToEntryState(TaffoRangeLattice *lattice) override {
     propagateIfChanged(lattice, lattice->join(TaffoValueRange::getMaxRange(
-                                    lattice->getPoint())));
+                                    lattice->getAnchor())));
   }
 
   /// Visit an operation. Invoke the transfer function on each operation that
-  /// implements `InferTaffoRangeInterface`.
-  void visitOperation(Operation *op,
+  /// implements `InferTaffoRangeNtvInterface`.
+  mlir::LogicalResult visitOperation(Operation *op,
                       ArrayRef<const TaffoRangeLattice *> operands,
                       ArrayRef<TaffoRangeLattice *> results) override;
 
