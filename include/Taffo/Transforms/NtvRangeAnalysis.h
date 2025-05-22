@@ -1,7 +1,7 @@
 #ifndef TAFFO_TRANSFORMS_NTVRANGEANALYSIS_H
 #define TAFFO_TRANSFORMS_NTVRANGEANALYSIS_H
 
-#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+#include "Taffo/Dialect/OpInterfaces.h"
 #include "Taffo/Transforms/TaffoRangeCommon.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 

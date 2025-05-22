@@ -9,7 +9,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/ScopeExit.h"
 
-#include "Taffo/Interfaces/InferTaffoRangeNtvInterface.h"
+#include "Taffo/Dialect/OpInterfaces.h"
 #include "Taffo/Transforms/TaffoRangeCommon.h"
 #include "llvm/ADT/APFloat.h"
 
