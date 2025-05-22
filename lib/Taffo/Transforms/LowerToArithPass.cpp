@@ -35,26 +35,28 @@ public:
       });
 
       addTargetMaterialization(
-          [&](mlir::OpBuilder &builder, mlir::Type resultType,
+          [&](mlir::OpBuilder &builder, mlir::TypeRange resultType,
               mlir::ValueRange inputs,
-              mlir::Location loc) -> std::optional<mlir::Value> {
+              mlir::Location loc, mlir::Type) -> llvm::SmallVector<mlir::Value> {
             if (inputs.size() != 1) {
-              return std::nullopt;
+              return {};
             }
 
             auto CastToRealOp =
                 builder.create<mlir::UnrealizedConversionCastOp>(
                     loc, resultType, inputs);
 
-            return CastToRealOp.getResult(0);
+            llvm::SmallVector<mlir::Value> result;
+            result.push_back(CastToRealOp.getResult(0));
+            return result;
           });
 
       addSourceMaterialization(
           [&](mlir::OpBuilder &builder, mlir::Type resultType,
               mlir::ValueRange inputs,
-              mlir::Location loc) -> std::optional<mlir::Value> {
+              mlir::Location loc) -> mlir::Value {
             if (inputs.size() != 1) {
-              return std::nullopt;
+              return {};
             }
 
             auto CastToRealOp =

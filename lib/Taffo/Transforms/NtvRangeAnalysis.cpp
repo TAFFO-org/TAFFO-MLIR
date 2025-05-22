@@ -97,7 +97,7 @@ void TaffoRangeLattice::onUpdate(DataFlowSolver *solver) const {
                                         ? std::optional<APFloat>(range.first)
                                         : std::nullopt;
 
-  auto value = point.get<Value>();
+  auto value = getAnchor();
   auto *cv = solver->getOrCreateState<Lattice<ConstantValue>>(value);
   if (!constant)
     return solver->propagateIfChanged(
@@ -113,7 +113,7 @@ void TaffoRangeLattice::onUpdate(DataFlowSolver *solver) const {
                                  dialect)));*/
 }
 
-void TaffoNtvRangeAnalysis::visitOperation(
+mlir::LogicalResult TaffoNtvRangeAnalysis::visitOperation(
     Operation *op, ArrayRef<const TaffoRangeLattice *> operands,
     ArrayRef<TaffoRangeLattice *> results) {
   // If the lattice on any operand is unitialized, bail out.
@@ -121,7 +121,7 @@ void TaffoNtvRangeAnalysis::visitOperation(
         return lattice->getValue().isUninitialized();
       })) {
     LLVM_DEBUG(llvm::dbgs() << "uninitialized operands in op " << *op << "\n");
-    return;
+    return mlir::failure();
   }
 
   if (dyn_cast<LoopLikeOpInterface>(op)) {
@@ -137,8 +137,10 @@ void TaffoNtvRangeAnalysis::visitOperation(
   }
 
   auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op);
-  if (!inferrable)
-    return setAllToEntryStates(results);
+  if (!inferrable) {
+    setAllToEntryStates(results);
+    return mlir::failure();
+  }
 
   LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
   SmallVector<NtvRange> argRanges(
@@ -162,7 +164,7 @@ void TaffoNtvRangeAnalysis::visitOperation(
       llvm::all_of(op->getResults(),
                    [&](Value v) { return hitTripCount(v); })) {
     LLVM_DEBUG(llvm::dbgs() << "trip count hit for op " << *op << "\n");
-    return;
+    return mlir::failure();
   }
 
   auto joinCallback = [&](Value v, const NtvRange &attrs) {
@@ -184,6 +186,7 @@ void TaffoNtvRangeAnalysis::visitOperation(
   };
 
   inferrable.inferTaffoRanges(argRanges, joinCallback);
+  return mlir::success();
 }
 
 void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
@@ -204,14 +207,14 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
 
   if (auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op)) {
     LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
-    // If the lattice on any operand is unitialized, bail out.
+    // If the lattice on any operand is uninitialized, bail out.
     if (llvm::any_of(op->getOperands(), [&](Value value) {
-          return getLatticeElementFor(op, value)->getValue().isUninitialized();
+          return getLatticeElementFor(getProgramPointAfter(op), value)->getValue().isUninitialized();
         }))
       return;
     SmallVector<NtvRange> argRanges(
         llvm::map_range(op->getOperands(), [&](Value value) {
-          return getLatticeElementFor(op, value)->getValue().getValue();
+          return getLatticeElementFor(getProgramPointAfter(op), value)->getValue().getValue();
         }));
 
     auto parent = loops.find(op->getParentOp());
