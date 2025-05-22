@@ -30,129 +30,150 @@ class RaiseToTaffoPass
 public:
   using RaiseToTaffoPassBase::RaiseToTaffoPassBase;
 
-  struct RewriteFor : public OpRewritePattern<scf::ForOp> {
-    using OpRewritePattern::OpRewritePattern;
+  class ArithToTaffoTypeConverter : public mlir::TypeConverter {
+  public:
+    ArithToTaffoTypeConverter(MLIRContext *ctx) {
+      addConversion([](Type type) { return type; });
+      addConversion([ctx](FloatType type) -> Type {
+        if (type.isF32())
+          return taffo::RealType::get(ctx, false, 0, 0);
+        return type;
+      });
 
-    LogicalResult matchAndRewrite(scf::ForOp forOp,
-                                  PatternRewriter &rewriter) const override {
-      // Skip for-ops that have already been processed.
-      if (forOp->getAttr("taffo.rewritten"))
+      addTargetMaterialization(
+          [&](mlir::OpBuilder &builder, mlir::Type resultType,
+              mlir::ValueRange inputs,
+              mlir::Location loc) -> std::optional<mlir::Value> {
+            if (inputs.size() != 1) {
+              return std::nullopt;
+            }
+
+            auto CastToRealOp =
+                builder.create<mlir::UnrealizedConversionCastOp>(
+                    loc, resultType, inputs);
+
+            return CastToRealOp.getResult(0);
+          });
+
+      addSourceMaterialization(
+          [&](mlir::OpBuilder &builder, mlir::Type resultType,
+              mlir::ValueRange inputs,
+              mlir::Location loc) -> std::optional<mlir::Value> {
+            if (inputs.size() != 1) {
+              return std::nullopt;
+            }
+            auto CastToRealOp =
+                builder.create<mlir::UnrealizedConversionCastOp>(
+                    loc, resultType, inputs);
+
+            return CastToRealOp.getResult(0);
+          });
+    }
+  };
+  struct RewriteFor : public OpConversionPattern<scf::ForOp> {
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(scf::ForOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      Block *body = op.getBody();
+
+      Region &region = op->getRegion(0);
+
+      rewriter.startOpModification(op);
+      auto terminator = cast<scf::YieldOp>(body->getTerminator());
+      SmallVector<Value> terminatorRes;
+      if (failed(rewriter.getRemappedValues(terminator->getOperands(),
+                                            terminatorRes)))
+        return failure();
+      rewriter.modifyOpInPlace(terminator,
+                               [&] { terminator->setOperands(terminatorRes); });
+
+      rewriter.finalizeOpModification(op);
+
+      if (failed(rewriter.convertRegionTypes(&region, *getTypeConverter())))
         return failure();
 
-      auto &bodyBlock = forOp.getRegion().front();
-      auto context = rewriter.getContext();
-      bool changed = false;
-      // Update the types of the block arguments.
-      for (auto arg : bodyBlock.getArguments()) {
-        if (arg.getType().isF32()) {
-          arg.setType(taffo::RealType::get(context, false, 0, 0));
-          changed = true;
-        }
-      }
-      // Update the result types of the for-loop if needed.
-      SmallVector<Type, 4> newResultTypes;
-      for (auto res : forOp.getResults()) {
-        if (res.getType().isF32()) {
-          newResultTypes.push_back(taffo::RealType::get(context, false, 0, 0));
-          changed = true;
-        } else {
-          newResultTypes.push_back(res.getType());
-        }
-      }
-      if (changed) {
-        // Create a new scf.for op with the updated result types.
-        auto newForOp = rewriter.create<scf::ForOp>(
-            forOp.getLoc(), forOp.getLowerBound(), forOp.getUpperBound(),
-            forOp.getStep(), forOp.getOperands().drop_front(3),
-            [&](OpBuilder &builder, Location loc, Value iv,
-                ValueRange iterArgs) {
-              // empty lambda; the body will be replaced below.
-            });
-        // Tag the new op to avoid re-matching.
-        newForOp->setAttr("taffo.rewritten", rewriter.getUnitAttr());
-        // Transfer the body from the old op to the new op.
-        newForOp.getRegion().takeBody(forOp.getRegion());
-        for (auto it : llvm::enumerate(newForOp.getResults())) {
-          it.value().setType(newResultTypes[it.index()]);
-        }
-        // Replace the old op with the new op's results.
-        rewriter.replaceOp(forOp, newForOp.getResults());
-      }
+      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
-      return success(changed);
+      auto newOp =
+          b.create<scf::ForOp>(adaptor.getLowerBound(), adaptor.getUpperBound(),
+                               adaptor.getStep(), adaptor.getInitArgs());
+
+      // We do not need the empty block created by rewriter.
+      rewriter.eraseBlock(newOp.getBody(0));
+      // Inline the type converted region from the original operation.
+      rewriter.inlineRegionBefore(op.getRegion(), newOp.getRegion(),
+                                  newOp.getRegion().end());
+
+      rewriter.replaceOp(op, newOp);
+      return success();
     }
   };
 
-  struct RewriteSetRangeCall : public OpRewritePattern<func::CallOp> {
-    using OpRewritePattern::OpRewritePattern;
+  struct RewriteSetRangeCall : public OpConversionPattern<func::CallOp> {
+    using OpConversionPattern::OpConversionPattern;
 
-    LogicalResult matchAndRewrite(func::CallOp op,
-                                  PatternRewriter &rewriter) const override {
+    LogicalResult
+    matchAndRewrite(func::CallOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
 
-      if (op.getCallee().contains("set_range")) {
-        // Create a taffo.cast2real operation
-        OpBuilder builder(op);
-        auto loc = op.getLoc();
-        auto input = op.getOperand(0);
+      // Create a taffo.cast2real operation
+      OpBuilder builder(op);
+      auto loc = op.getLoc();
+      auto input = op.getOperand(0);
 
-        LLVM_DEBUG(llvm::dbgs() << "Input for set_range: " << input << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "Input for set_range: " << input << "\n");
 
-        // Get the second and third operands
-        Value secondOperand = op.getOperand(1);
-        Value thirdOperand = op.getOperand(2);
-        Value fourthOperand = op.getOperand(3);
+      // Get the second and third operands
+      Value secondOperand = op.getOperand(1);
+      Value thirdOperand = op.getOperand(2);
+      Value fourthOperand = op.getOperand(3);
 
-        // Check if each is defined by a ConstantOp
-        auto secondConstOp = secondOperand.getDefiningOp<arith::ConstantOp>();
-        auto thirdConstOp = thirdOperand.getDefiningOp<arith::ConstantOp>();
-        auto fourthConstOp = fourthOperand.getDefiningOp<arith::ConstantOp>();
+      // Check if each is defined by a ConstantOp
+      auto secondConstOp = secondOperand.getDefiningOp<arith::ConstantOp>();
+      auto thirdConstOp = thirdOperand.getDefiningOp<arith::ConstantOp>();
+      auto fourthConstOp = fourthOperand.getDefiningOp<arith::ConstantOp>();
 
-        if (!secondConstOp || !thirdConstOp || !fourthConstOp)
-          return failure();
+      if (!secondConstOp || !thirdConstOp || !fourthConstOp)
+        return failure();
 
-        // Extract min, max, and precision
-        auto min = secondConstOp.getValue().dyn_cast<FloatAttr>();
-        auto max = thirdConstOp.getValue().dyn_cast<FloatAttr>();
-        auto precision = fourthConstOp.getValue().dyn_cast<FloatAttr>();
-        if (!min || !max || !precision)
-          return failure();
+      // Extract min, max, and precision
+      auto min = secondConstOp.getValue().dyn_cast<FloatAttr>();
+      auto max = thirdConstOp.getValue().dyn_cast<FloatAttr>();
+      auto precision = fourthConstOp.getValue().dyn_cast<FloatAttr>();
+      if (!min || !max || !precision)
+        return failure();
 
-        auto return_type =
-            taffo::RealType::get(builder.getContext(), false, 0, 0);
-        LLVM_DEBUG(llvm::dbgs() << "Created type: " << return_type << "\n");
-        LLVM_DEBUG(llvm::dbgs() << "Created min: " << min << "\n");
-        LLVM_DEBUG(llvm::dbgs() << "Created max: " << max << "\n");
-        LLVM_DEBUG(llvm::dbgs() << "Created precision: " << precision << "\n");
+      auto return_type =
+          taffo::RealType::get(builder.getContext(), false, 0, 0);
+      LLVM_DEBUG(llvm::dbgs() << "Created type: " << return_type << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "Created min: " << min << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "Created max: " << max << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "Created precision: " << precision << "\n");
 
-        auto cast2real = rewriter.create<taffo::CastToRealOp>(
-            loc, return_type, input, precision, min, max);
-        LLVM_DEBUG(llvm::dbgs() << "Created cast2real:" << cast2real << "\n");
+      auto cast2real = rewriter.create<taffo::CastToRealOp>(
+          loc, return_type, input, precision, min, max);
+      LLVM_DEBUG(llvm::dbgs() << "Created cast2real:" << cast2real << "\n");
 
-        rewriter.replaceOp(op, cast2real.getResult());
-        return success();
-      }
-      return failure();
+      rewriter.replaceOp(op, cast2real.getResult());
+      return success();
     }
   };
 
-  struct RewriteArithAddOp : public OpRewritePattern<arith::AddFOp> {
-    using OpRewritePattern::OpRewritePattern;
+  struct RewriteArithAddOp : public OpConversionPattern<arith::AddFOp> {
+    using OpConversionPattern::OpConversionPattern;
 
-    LogicalResult matchAndRewrite(arith::AddFOp op,
-                                  PatternRewriter &rewriter) const override {
+    LogicalResult
+    matchAndRewrite(arith::AddFOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
 
       OpBuilder builder(op);
 
       auto loc = op.getLoc();
       auto input1 = op.getOperand(0);
       auto input2 = op.getOperand(1);
-
-      // Only perform the rewrite if all the args of the op are of type
-      // taffo::RealType
-      if (!input1.getType().isa<taffo::RealType>() ||
-          !input2.getType().isa<taffo::RealType>()) {
-        return failure();
-      }
 
       auto return_type =
           taffo::RealType::get(builder.getContext(), false, 0, 0);
@@ -168,23 +189,17 @@ public:
     }
   };
 
-  struct RewriteArithMulOp : public OpRewritePattern<arith::MulFOp> {
-    using OpRewritePattern::OpRewritePattern;
+  struct RewriteArithMulOp : public OpConversionPattern<arith::MulFOp> {
+    using OpConversionPattern::OpConversionPattern;
 
-    LogicalResult matchAndRewrite(arith::MulFOp op,
-                                  PatternRewriter &rewriter) const override {
+    LogicalResult
+    matchAndRewrite(arith::MulFOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
       OpBuilder builder(op);
 
       auto loc = op.getLoc();
-      auto input1 = op.getOperand(0);
-      auto input2 = op.getOperand(1);
-
-      // Only perform the rewrite if all the args of the op are of type
-      // taffo::RealType
-      if (!input1.getType().isa<taffo::RealType>() ||
-          !input2.getType().isa<taffo::RealType>()) {
-        return failure();
-      }
+      auto input1 = adaptor.getLhs();
+      auto input2 = adaptor.getRhs();
 
       auto return_type =
           taffo::RealType::get(builder.getContext(), false, 0, 0);
@@ -200,20 +215,15 @@ public:
     }
   };
 
-  struct RewriteArithDivOp : public OpRewritePattern<arith::DivFOp> {
-    using OpRewritePattern::OpRewritePattern;
+  struct RewriteArithDivOp : public OpConversionPattern<arith::DivFOp> {
+    using OpConversionPattern::OpConversionPattern;
 
-    LogicalResult matchAndRewrite(arith::DivFOp op,
-                                  PatternRewriter &rewriter) const override {
+    LogicalResult
+    matchAndRewrite(arith::DivFOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
       auto loc = op.getLoc();
       auto input1 = op.getOperand(0);
       auto input2 = op.getOperand(1);
-
-      // Only perform the rewrite if all the arguments of the op are of type
-      // taffo::RealType.
-      if (!input1.getType().isa<taffo::RealType>() ||
-          !input2.getType().isa<taffo::RealType>())
-        return failure();
 
       auto returnType =
           taffo::RealType::get(rewriter.getContext(), false, 0, 0);
@@ -226,54 +236,43 @@ public:
     }
   };
 
-  struct InsertCast2FloatReturnOp : public OpRewritePattern<func::ReturnOp> {
-    using OpRewritePattern::OpRewritePattern;
+  struct InsertCast2FloatReturnOp : public OpConversionPattern<func::ReturnOp> {
+    using OpConversionPattern::OpConversionPattern;
 
-    LogicalResult matchAndRewrite(func::ReturnOp op,
-                                  PatternRewriter &rewriter) const override {
-      // Find the parent function and get its declared result types
-      auto function = op->getParentOfType<func::FuncOp>();
-      if (!function)
-        return failure();
-
-      auto funcType = function.getFunctionType();
-      auto resultTypes = funcType.getResults();
-      // If the number of return operands doesn't match the function
-      // signature, bail out (or handle differently if your IR can mismatch).
-      if (op.getNumOperands() != resultTypes.size())
-        return failure();
-
-      // We'll rebuild the operand list with cast ops where needed.
+    LogicalResult
+    matchAndRewrite(func::ReturnOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+      OpBuilder builder(op);
       SmallVector<Value> newOperands;
-      newOperands.reserve(op.getNumOperands());
-
       bool changed = false;
+      // create new func.return
+
       // Iterate over each operand in tandem with the declared result type.
       for (auto it : llvm::enumerate(op.getOperands())) {
         unsigned i = it.index();
         Value operand = it.value();
-        Type desiredType = resultTypes[i];
 
-        // If the function says this return value should be float,
-        // and the operand is not *already* the correct cast,
-        // insert a CastToFloatOp with the declaredType.
-        auto floatTy = desiredType.dyn_cast<FloatType>();
-        if (floatTy && operand.getType().isa<taffo::RealType>()) {
-          // Skip if operand is already from taffo.cast2float with matching
-          // type.
-          if (auto castOp = operand.getDefiningOp<taffo::CastToFloatOp>()) {
-            if (castOp.getResult().getType() == floatTy) {
-              newOperands.push_back(operand);
-              continue;
-            }
-          }
-          // Otherwise, create a new cast
-          auto loc = op.getLoc();
-          auto cast2float =
-              rewriter.create<taffo::CastToFloatOp>(loc, floatTy, operand);
+        // if operand is of type f32 insert an unrealized conversion to
+        // taffo.real
+        auto opType = operand.getType();
+        if (opType.isF32()) {
+          // Print the operands defining op
+          LLVM_DEBUG(llvm::dbgs() << "Operand: " << operand << "\n");
+          LLVM_DEBUG(llvm::dbgs() << "Operand defining op: "
+                                  << operand.getDefiningOp() << "\n");
+          auto realTy =
+              taffo::RealType::get(rewriter.getContext(), false, 0, 0);
+          auto castToReal = builder.create<mlir::UnrealizedConversionCastOp>(
+              op.getLoc(), realTy, operand);
+          operand = castToReal.getResult(0);
+
+          auto cast2float = builder.create<taffo::CastToFloatOp>(
+              op.getLoc(), opType, operand);
           newOperands.push_back(cast2float.getResult());
           changed = true;
-        } else {
+        }
+
+        else {
           // If it's not a float return type (e.g. i32), we won't cast.
           newOperands.push_back(operand);
         }
@@ -286,19 +285,19 @@ public:
         return failure();
 
       // Update the return op in-place with the new operands.
-      rewriter.startOpModification(op);
-      op->setOperands(newOperands);
-      rewriter.finalizeOpModification(op);
+      auto newOp = builder.create<func::ReturnOp>(op.getLoc(), newOperands);
+      rewriter.replaceOp(op, newOp);
 
       return success();
     }
   };
 
-  struct InsertCast2FloatFuncCallOp : public OpRewritePattern<func::CallOp> {
-    using OpRewritePattern::OpRewritePattern;
+  struct InsertCast2FloatFuncCallOp : public OpConversionPattern<func::CallOp> {
+    using OpConversionPattern::OpConversionPattern;
 
-    LogicalResult matchAndRewrite(func::CallOp op,
-                                  PatternRewriter &rewriter) const override {
+    LogicalResult
+    matchAndRewrite(func::CallOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
       // Get the function being called
       auto function = op.getCallee();
       LLVM_DEBUG(llvm::dbgs() << "Function: " << function << "\n");
@@ -366,42 +365,50 @@ public:
     }
   };
 
-  struct RewriteYieldOp : public OpRewritePattern<scf::YieldOp> {
-    using OpRewritePattern::OpRewritePattern;
-    LogicalResult matchAndRewrite(scf::YieldOp op,
-                                  PatternRewriter &rewriter) const override {
-      SmallVector<Value> newOperands;
-      bool changed = false;
-      for (auto operand : op.getOperands()) {
-        if (operand.getType().isF32()) {
-          auto loc = op.getLoc();
-          auto context = rewriter.getContext();
-          auto newType = taffo::RealType::get(context, false, 0, 0);
-          auto precision = rewriter.getF32FloatAttr(0.0);
-          auto min = rewriter.getF32FloatAttr(0.0);
-          auto max = rewriter.getF32FloatAttr(0.0);
-          auto castOp = rewriter.create<taffo::CastToRealOp>(
-              loc, newType, operand, precision, min, max);
-          newOperands.push_back(castOp.getResult());
-          changed = true;
-        } else {
-          newOperands.push_back(operand);
-        }
-      }
-      if (!changed)
-        return failure();
-      rewriter.startOpModification(op);
-      op->setOperands(newOperands);
-      rewriter.finalizeOpModification(op);
-      return success();
-    }
-  };
+  // struct RewriteYieldOp : public OpConversionPattern<scf::YieldOp> {
+  //   using OpConversionPattern::OpConversionPattern;
+  //   LogicalResult
+  //   matchAndRewrite(scf::YieldOp op, OpAdaptor adaptor,
+  //                   ConversionPatternRewriter &rewriter) const override {
+  //     // If there are no f32 operands, let other patterns handle it.
+  //     bool hasF32 = llvm::any_of(op.getOperands(),
+  //                                [&](Value v) { return v.getType().isF32();
+  //                                });
+  //     if (!hasF32)
+  //       return failure();
 
-  struct RewriteIfOp : public OpRewritePattern<scf::IfOp> {
-    using OpRewritePattern::OpRewritePattern;
+  //     // The parent block of this yield has already had its signature
+  //     // rewritten, so its block args are now !taffo.real.
+  //     Block *parent = op->getBlock();
+  //     unsigned numArgs = parent->getNumArguments();
 
-    LogicalResult matchAndRewrite(scf::IfOp ifOp,
-                                  PatternRewriter &rewriter) const override {
+  //     // Build the new operand list: for each original operand:
+  //     //   - if it was a block argument, grab the *converted* block arg
+  //     //   - otherwise just reuse the same SSA value (it won’t be f32)
+  //     SmallVector<Value, 4> newOperands;
+  //     newOperands.reserve(op.getNumOperands());
+  //     for (auto opOperand : llvm::enumerate(op.getOperands())) {
+  //       Value oldVal = opOperand.value();
+  //       if (BlockArgument *arg = &oldVal.dyn_cast<BlockArgument>()) {
+  //         // map the old arg # to the *same* new block argument
+  //         newOperands.push_back(parent->getArgument(arg->getArgNumber()));
+  //       } else {
+  //         newOperands.push_back(oldVal);
+  //       }
+  //     }
+
+  //     // Replace with a fresh scf.yield that returns those block args
+  //     rewriter.replaceOpWithNewOp<scf::YieldOp>(op, newOperands);
+  //     return success();
+  //   }
+  // };
+
+  struct RewriteIfOp : public OpConversionPattern<scf::IfOp> {
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(scf::IfOp ifOp, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
       // Skip if already processed.
       if (ifOp->getAttr("taffo.rewritten"))
         return failure();
@@ -438,21 +445,77 @@ public:
       return success();
     }
   };
+
+  struct RemoveSetRangeDef : public OpConversionPattern<func::FuncOp> {
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(func::FuncOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      // rewriter.startOpModification(op);
+      rewriter.eraseOp(op);
+      return success();
+    }
+  };
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
+    ArithToTaffoTypeConverter typeConverter(context);
+
     // dialect conversion driver
+    // mark all operations that have f32 args as ilegal
+    target.addLegalDialect<TaffoDialect>();
+    target.addLegalOp<scf::YieldOp>();
+    target.addDynamicallyLegalOp<arith::AddFOp, arith::SubFOp, arith::MulFOp,
+                                 arith::DivFOp, func::ReturnOp>(
+        [](Operation *op) {
+          // Check if the operation has any f32 arguments
+          for (auto operand : op->getOperands()) {
+            if (operand.getType().isF32()) {
+              LLVM_DEBUG(llvm::dbgs() << "Found f32 operand in op: " << *op);
+              return false; // Mark as illegal
+            }
+          }
+          return true; // Mark as legal
+        });
+
+    target.addDynamicallyLegalOp<func::CallOp>([](Operation *op) {
+      // cast to CallOp
+      auto callOp = llvm::dyn_cast<func::CallOp>(op);
+      // Check if the function being called is a taffo function
+      return !callOp.getCallee().contains("set_range");
+    });
+
+    target.addDynamicallyLegalOp<func::FuncOp>([](Operation *op) {
+      // cast to CallOp
+      auto funcOp = llvm::dyn_cast<func::FuncOp>(op);
+      // Check if the function being called is a taffo function
+      return !funcOp.getName().contains("set_range");
+    });
+
+    target.addDynamicallyLegalOp<scf::ForOp>(
+        [&](scf::ForOp op) { return typeConverter.isLegal(op); });
+
     RewritePatternSet patterns(&getContext());
-    patterns.add<RewriteSetRangeCall>(patterns.getContext());
-    patterns.add<RewriteFor>(patterns.getContext());
-    patterns.add<RewriteArithAddOp>(patterns.getContext());
-    patterns.add<RewriteArithMulOp>(patterns.getContext());
-    patterns.add<RewriteArithDivOp>(patterns.getContext());
-    patterns.add<InsertCast2FloatReturnOp>(patterns.getContext());
-    patterns.add<InsertCast2FloatFuncCallOp>(patterns.getContext());
-    patterns.add<RewriteIfOp>(patterns.getContext());
+    patterns.add<RewriteFor, RewriteSetRangeCall, RewriteArithAddOp,
+                 RewriteArithMulOp, RewriteArithDivOp, InsertCast2FloatReturnOp, RemoveSetRangeDef/*,
+                 InsertCast2FloatFuncCallOp, RewriteIfOp*/>(typeConverter,
+                                                          context);
     // patterns.add<RewriteYieldOp>(patterns.getContext());
-    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+    (void)applyPartialConversion(getOperation(), target, std::move(patterns));
+
+    // getOperation()->dump();
+    // target.addDynamicallyLegalOp<scf::ForOp>(
+    //     [&](scf::ForOp op) { return typeConverter.isLegal(op); });
+
+    // RewritePatternSet loopPatterns(context);
+    // loopPatterns.add<RewriteFor>(typeConverter, context);
+    // if (failed(applyPartialConversion(getOperation(), target,
+    //                                   std::move(loopPatterns)))) {
+    //   signalPassFailure();
+    // }
   }
 };
 } // namespace mlir
