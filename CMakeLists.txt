@@ -14,10 +14,17 @@ add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
 
 
 
+if (DEFINED LLVM_PATH)
+  get_filename_component(LLVM_ABS_PATH ${LLVM_PATH} ABSOLUTE)
+  set(LLVM_DIR "${LLVM_ABS_PATH}/lib/cmake/llvm")
+  set(MLIR_DIR "${LLVM_ABS_PATH}/lib/cmake/mlir")
+  set(Clang_DIR "${LLVM_ABS_PATH}/lib/cmake/clang")
+endif()
+
 find_package(MLIR REQUIRED CONFIG)
 
-message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
 
 set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/bin)
 set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
