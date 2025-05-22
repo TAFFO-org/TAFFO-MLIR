@@ -14,7 +14,7 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 
 // Real type.
 def TaffoReal :
-    Type<CPred<"$_self.isa<::mlir::taffo::RealType>()">,
+    Type<CPred<"mlir::isa<::mlir::taffo::RealType>($_self)">,
          "real", "::mlir::taffo::RealType">;
 
 //===---------------------------------------------------------------------===//
