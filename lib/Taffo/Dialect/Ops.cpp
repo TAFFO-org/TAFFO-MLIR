@@ -9,8 +9,8 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/ScopeExit.h"
 
-#include "Taffo/Interfaces/InferTaffoRangeInterface.h"
 #include "Taffo/Transforms/AffineRangeAnalysis.hpp"
+#include "Taffo/Dialect/OpInterfaces.h"
 #include "Taffo/Transforms/TaffoRangeCommon.h"
 #include "llvm/ADT/APFloat.h"
 using namespace ::mlir;

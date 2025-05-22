@@ -1,5 +1,0 @@
-set(LLVM_TARGET_DEFINITIONS InferTaffoRangeInterface.td)
-mlir_tablegen(InferTaffoRangeInterface.h.inc -gen-op-interface-decls)
-mlir_tablegen(InferTaffoRangeInterface.cpp.inc -gen-op-interface-defs)
-add_public_tablegen_target(InferTaffoRangeInterfaceIncGen)
-add_dependencies(MLIRTaffoIncGen InferTaffoRangeInterfaceIncGen)

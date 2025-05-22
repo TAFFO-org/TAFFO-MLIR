@@ -1,15 +1,17 @@
 add_mlir_dialect_library(MLIRTaffo
-        Taffo.cpp
-        Ops.cpp
-        Types.cpp
-        Attributes.cpp
+    Attributes.cpp
+    OpInterfaces.cpp
+    Ops.cpp
+    Taffo.cpp
+    Types.cpp
 
-        DEPENDS
-        MLIRTaffoIncGen
+    DEPENDS
+    MLIRTaffoIncGen
 
-        LINK_COMPONENTS
-        Core
+    LINK_COMPONENTS
+    Core
 
-        LINK_LIBS PUBLIC
-        MLIRIR
+    LINK_LIBS PUBLIC
+    MLIRIR
+        MLIRInferTypeOpInterface
 )
