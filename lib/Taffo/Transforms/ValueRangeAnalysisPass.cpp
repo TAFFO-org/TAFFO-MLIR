@@ -6,6 +6,7 @@
 #include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "Taffo/Dialect/Ops.h"
 #include "Taffo/Transforms/AffineRangeAnalysis.hpp"
@@ -15,6 +16,24 @@ namespace mlir::taffo {
 } // namespace mlir::taffo
 
 using namespace ::mlir::taffo;
+
+namespace {
+enum class VraMode { Mixed = 0, Affine = 1, Interval = 2 };
+
+static llvm::cl::opt<VraMode> clVraMode(
+    "vra-mode",
+    llvm::cl::desc(
+        "Value Range Analysis mode: choose 'affine', 'interval' or 'mixed'"),
+    llvm::cl::values(
+        clEnumValN(VraMode::Affine, "affine",
+                   "Use only affine arithmetic for VRA"),
+        clEnumValN(VraMode::Interval, "interval",
+                   "Use only interval arithmetic for VRA"),
+        clEnumValN(
+            VraMode::Mixed, "mixed",
+            "Run both affine and interval and choose the narrowest range")),
+    llvm::cl::init(VraMode::Mixed));
+} // namespace
 
 namespace {
 class ValueRangeAnalysisPass
@@ -32,8 +51,17 @@ public:
     // Since what we are doing is very similar, we load it just in case
     // (check if it's necessary in the future)
     solver.load<mlir::dataflow::DeadCodeAnalysis>();
-    solver.load<TaffoNtvRangeAnalysis>();
-    solver.load<TaffoAffineRangeAnalysis>();
+
+    // Load analyses depending on the selected VRA mode
+    if (clVraMode == VraMode::Interval) {
+      solver.load<TaffoNtvRangeAnalysis>();
+    } else if (clVraMode == VraMode::Affine) {
+      solver.load<TaffoAffineRangeAnalysis>();
+    } else {
+      // Mixed: run both and pick the narrowest range
+      solver.load<TaffoNtvRangeAnalysis>();
+      solver.load<TaffoAffineRangeAnalysis>();
+    }
 
     if (mlir::failed(solver.initializeAndRun(module)))
       signalPassFailure();
@@ -51,29 +79,64 @@ public:
         // LLVM_DEBUG(llvm::dbgs() << "Skipping op: " << *op << "\n");
         return mlir::WalkResult::advance();
       }
-      // Lookup the range of the operation in Ntv Lattice
-      const TaffoRangeLattice *opNtvRange =
-          solver.lookupState<TaffoRangeLattice>(op->getResult(0));
-      if (!opNtvRange || opNtvRange->getValue().isUninitialized()) {
-        op->emitOpError() << "Found op without a set range; have all variables"
-                             " been assigned a range?";
-        return mlir::WalkResult::interrupt();
-      }
+      // Depending on the selected mode, lookup appropriate lattices and
+      // compute the final range
+      std::unique_ptr<LibAffine::Range> final_range;
 
-      // Lookup the range of the operation in Affine Lattice
-      const TaffoAffineRangeLattice *opAffineRange =
-          solver.lookupState<TaffoAffineRangeLattice>(op->getResult(0));
-      if (!opAffineRange || opAffineRange->getValue().isUninitialized()) {
-        op->emitOpError() << "Found op without a set range; have all variables"
-                             "been assigned a range?";
-        return mlir::WalkResult::interrupt();
-      }
+      if (clVraMode == VraMode::Interval) {
+        const TaffoRangeLattice *opNtvRange =
+            solver.lookupState<TaffoRangeLattice>(op->getResult(0));
+        if (!opNtvRange || opNtvRange->getValue().isUninitialized()) {
+          op->emitOpError()
+              << "Found op without a set range; have all variables"
+                 " been assigned a range?";
+          return mlir::WalkResult::interrupt();
+        }
+        TaffoValueRange::NtvRange ntvRange = opNtvRange->getValue().getValue();
+        final_range =
+            std::make_unique<LibAffine::Range>(ntvRange.first, ntvRange.second);
+      } else if (clVraMode == VraMode::Affine) {
+        const TaffoAffineRangeLattice *opAffineRange =
+            solver.lookupState<TaffoAffineRangeLattice>(op->getResult(0));
+        if (!opAffineRange || opAffineRange->getValue().isUninitialized()) {
+          op->emitOpError()
+              << "Found op without a set range; have all variables"
+                 " been assigned a range?";
+          return mlir::WalkResult::interrupt();
+        }
+        auto affineRange = opAffineRange->getValue().getValue().get_range();
+        final_range = std::make_unique<LibAffine::Range>(affineRange.start,
+                                                         affineRange.end);
+      } else {
+        // Mixed: prefer the narrowest range between interval and affine
+        const TaffoRangeLattice *opNtvRange =
+            solver.lookupState<TaffoRangeLattice>(op->getResult(0));
+        const TaffoAffineRangeLattice *opAffineRange =
+            solver.lookupState<TaffoAffineRangeLattice>(op->getResult(0));
 
-      // Select the smallets range of the two based on their radius
-      TaffoValueRange::NtvRange ntvRange = opNtvRange->getValue().getValue();
-      auto affineRange = opAffineRange->getValue().getValue().get_range();
-      std::unique_ptr<LibAffine::Range> final_range =
-          std::make_unique<LibAffine::Range>(ntvRange.first, ntvRange.second);
+        if (!opNtvRange || opNtvRange->getValue().isUninitialized() ||
+            !opAffineRange || opAffineRange->getValue().isUninitialized()) {
+          op->emitOpError()
+              << "Found op without a set range; have all variables"
+                 " been assigned a range?";
+          return mlir::WalkResult::interrupt();
+        }
+
+        TaffoValueRange::NtvRange ntvRange = opNtvRange->getValue().getValue();
+        auto affineRange = opAffineRange->getValue().getValue().get_range();
+
+        // Build interval ranges
+        LibAffine::Range ntvR(ntvRange.first, ntvRange.second);
+        LibAffine::Range affR(affineRange.start, affineRange.end);
+
+        // Choose the one with smaller radius
+        auto ntvRadius = ntvR.end - ntvR.start;
+        auto affRadius = affR.end - affR.start;
+        if (ntvRadius <= affRadius)
+          final_range = std::make_unique<LibAffine::Range>(ntvR);
+        else
+          final_range = std::make_unique<LibAffine::Range>(affR);
+      }
 
       bool signd =
           final_range->start.isNegative() || final_range->end.isNegative();
