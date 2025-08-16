@@ -172,8 +172,8 @@ public:
       OpBuilder builder(op);
 
       auto loc = op.getLoc();
-      auto input1 = op.getOperand(0);
-      auto input2 = op.getOperand(1);
+      auto input1 = adaptor.getLhs();
+      auto input2 = adaptor.getRhs();
 
       auto return_type =
           taffo::RealType::get(builder.getContext(), false, 0, 0);
@@ -185,6 +185,33 @@ public:
 
       // Replace the original operation with the new one
       rewriter.replaceOp(op, addOp.getResult());
+      return success();
+    }
+  };
+
+  struct RewriteArithSubOp : public OpConversionPattern<arith::SubFOp> {
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult
+    matchAndRewrite(arith::SubFOp op, OpAdaptor adaptor,
+                    ConversionPatternRewriter &rewriter) const override {
+
+      OpBuilder builder(op);
+
+      auto loc = op.getLoc();
+      auto input1 = adaptor.getLhs();
+      auto input2 = adaptor.getRhs();
+
+      auto return_type =
+          taffo::RealType::get(builder.getContext(), false, 0, 0);
+      // Create a taffo.sub operation
+      auto subOp =
+          rewriter.create<taffo::SubOp>(loc, return_type, input1, input2);
+
+      LLVM_DEBUG(llvm::dbgs() << "Created sub:" << subOp << "\n");
+
+      // Replace the original operation with the new one
+      rewriter.replaceOp(op, subOp.getResult());
       return success();
     }
   };
@@ -222,8 +249,8 @@ public:
     matchAndRewrite(arith::DivFOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
       auto loc = op.getLoc();
-      auto input1 = op.getOperand(0);
-      auto input2 = op.getOperand(1);
+      auto input1 = adaptor.getLhs();
+      auto input2 = adaptor.getRhs();
 
       auto returnType =
           taffo::RealType::get(rewriter.getContext(), false, 0, 0);
@@ -407,41 +434,70 @@ public:
     using OpConversionPattern::OpConversionPattern;
 
     LogicalResult
-    matchAndRewrite(scf::IfOp ifOp, OpAdaptor adaptor,
+    matchAndRewrite(scf::IfOp op, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
-      // Skip if already processed.
-      if (ifOp->getAttr("taffo.rewritten"))
+      // Convert the types of the then region.
+      Region &thenRegion = op.getThenRegion();
+      if (failed(rewriter.convertRegionTypes(&thenRegion, *getTypeConverter())))
         return failure();
 
-      auto loc = ifOp.getLoc();
-      bool changed = false;
-      SmallVector<Type, 4> newResultTypes;
-      for (auto res : ifOp.getResults()) {
-        if (res.getType().isF32()) {
-          newResultTypes.push_back(
-              taffo::RealType::get(rewriter.getContext(), false, 0, 0));
-          changed = true;
-        } else {
-          newResultTypes.push_back(res.getType());
+      // Determine if an else region exists.
+      bool hasElse = !op.getElseRegion().empty();
+
+      // Update then region terminator operands.
+      Block &thenBlock = thenRegion.getBlocks().back();
+      if (auto thenYield =
+              llvm::dyn_cast<scf::YieldOp>(thenBlock.getTerminator())) {
+        SmallVector<Value> newOperands;
+        if (failed(rewriter.getRemappedValues(thenYield->getOperands(),
+                                              newOperands)))
+          return failure();
+        rewriter.modifyOpInPlace(
+            thenYield, [&]() { thenYield->setOperands(newOperands); });
+      }
+
+      // If an else region exists, update its terminator operands.
+      if (hasElse) {
+        Region &elseRegion = op.getElseRegion();
+        Block &elseBlock = elseRegion.getBlocks().back();
+        if (auto elseYield =
+                llvm::dyn_cast<scf::YieldOp>(elseBlock.getTerminator())) {
+          SmallVector<Value> newOperands;
+          if (failed(rewriter.getRemappedValues(elseYield->getOperands(),
+                                                newOperands)))
+            return failure();
+          rewriter.modifyOpInPlace(
+              elseYield, [&]() { elseYield->setOperands(newOperands); });
         }
       }
-      if (!changed)
-        return failure();
 
-      // Create a new if op with updated result types.
-      auto newIfOp =
-          rewriter.create<scf::IfOp>(loc, newResultTypes, ifOp.getCondition());
-      newIfOp->setAttr("taffo.rewritten", rewriter.getUnitAttr());
-      // Transfer the then region.
-      newIfOp.getThenRegion().takeBody(ifOp.getThenRegion());
-      // Transfer the else region if it exists.
+      // If an else region exists, convert its types as well.
+      if (hasElse) {
+        Region &elseRegion = op.getElseRegion();
+        if (failed(
+                rewriter.convertRegionTypes(&elseRegion, *getTypeConverter())))
+          return failure();
+      }
 
-      newIfOp.getElseRegion().takeBody(ifOp.getElseRegion());
-      // Set the new result types.
-      for (auto it : llvm::enumerate(newIfOp.getResults()))
-        it.value().setType(newResultTypes[it.index()]);
-      // Replace the old op with the new op's results.
-      rewriter.replaceOp(ifOp, newIfOp.getResults());
+      // Create a new scf.if op with the same condition and result types.
+      ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+      auto resType = taffo::RealType::get(b.getContext(), false, 0, 0);
+      auto newOp = b.create<scf::IfOp>(op.getLoc(), resType,
+                                       adaptor.getCondition(), hasElse);
+
+      // Remove the automatically created then block and inline the converted
+      // then region.
+      rewriter.eraseBlock(newOp.thenBlock());
+      rewriter.inlineRegionBefore(op.getThenRegion(), newOp.getThenRegion(),
+                                  newOp.getThenRegion().end());
+
+      // If there is an else region, do the same for it.
+      if (hasElse) {
+        rewriter.eraseBlock(newOp.elseBlock());
+        rewriter.inlineRegionBefore(op.getElseRegion(), newOp.getElseRegion(),
+                                    newOp.getElseRegion().end());
+      }
+      rewriter.replaceOp(op, newOp.getResults());
       return success();
     }
   };
@@ -498,9 +554,12 @@ public:
     target.addDynamicallyLegalOp<scf::ForOp>(
         [&](scf::ForOp op) { return typeConverter.isLegal(op); });
 
+    target.addDynamicallyLegalOp<scf::IfOp>(
+        [&](scf::IfOp op) { return typeConverter.isLegal(op); });
+
     RewritePatternSet patterns(&getContext());
-    patterns.add<RewriteFor, RewriteSetRangeCall, RewriteArithAddOp,
-                 RewriteArithMulOp, RewriteArithDivOp, InsertCast2FloatReturnOp, RemoveSetRangeDef/*,
+    patterns.add<RewriteFor, RewriteSetRangeCall, RewriteArithAddOp, RewriteArithSubOp,
+                 RewriteArithMulOp, RewriteArithDivOp, InsertCast2FloatReturnOp, RemoveSetRangeDef,RewriteIfOp /*,
                  InsertCast2FloatFuncCallOp, RewriteIfOp*/>(typeConverter,
                                                           context);
     // patterns.add<RewriteYieldOp>(patterns.getContext());
