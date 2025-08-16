@@ -18,3 +18,6 @@ configure_lit_site_cfg(
 #set_target_properties(check-standalone-opt PROPERTIES FOLDER "Tests")
 #
 #add_lit_testsuites(STANDALONE_OPT ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${STANDALONE_OPT_TEST_DEPENDS})
+
+# Add local libaffine tests
+add_subdirectory(libaffine)
