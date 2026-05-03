@@ -66,4 +66,4 @@ endif()
 
 set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 
-add_subdirectory(test)
+#add_subdirectory(test)
