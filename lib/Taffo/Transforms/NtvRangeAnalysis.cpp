@@ -136,7 +136,7 @@ mlir::LogicalResult TaffoNtvRangeAnalysis::visitOperation(
     }
   }
 
-  auto inferrable = dyn_cast<InferTaffoRangeNtvInterface>(op);
+  auto inferrable = dyn_cast<InferTaffoRangeInterface>(op);
   if (!inferrable) {
     setAllToEntryStates(results);
     return mlir::failure();
