@@ -90,7 +90,7 @@ public:
   void setToEntryState(TaffoAffineRangeLattice *lattice) override {
     propagateIfChanged(
         lattice,
-        lattice->join(TaffoAffineValueRange::getMaxRange(lattice->getPoint())));
+        lattice->join(TaffoAffineValueRange::getMaxRange(lattice->getAnchor())));
   }
 
   /// Visit an operation. Invoke the transfer function on each operation that

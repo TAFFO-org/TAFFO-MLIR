@@ -1,9 +1,9 @@
 #include "Taffo/Transforms/AffineRangeAnalysis.hpp"
 // most includes copied from mlir/Analysis/DataFlow/IntegerRangeAnalysis.cpp
 // might want to clean up later
+#include "Taffo/Dialect/OpInterfaces.h"
 #include "Taffo/Dialect/Ops.h"
 #include "Taffo/Dialect/Taffo.h"
-#include "Taffo/Dialect/OpInterfaces.h"
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
@@ -93,7 +93,7 @@ void TaffoAffineRangeLattice::onUpdate(DataFlowSolver *solver) const {
                                         ? std::optional<APFloat>(range.start)
                                         : std::nullopt;
 
-  auto value = point.get<Value>();
+  auto value = getAnchor();
   auto *cv = solver->getOrCreateState<Lattice<ConstantValue>>(value);
   if (!constant)
     return solver->propagateIfChanged(
@@ -225,12 +225,12 @@ void TaffoAffineRangeAnalysis::visitNonControlFlowArguments(
                << "[Affine VRA] Inferring ranges for " << *op << "\n");
     // If the lattice on any operand is unitialized, bail out.
     if (llvm::any_of(op->getOperands(), [&](Value value) {
-          return getLatticeElementFor(op, value)->getValue().isUninitialized();
+          return getLatticeElementFor(getProgramPointAfter(op), value)->getValue().isUninitialized();
         }))
       return;
     SmallVector<Var> argRanges(
         llvm::map_range(op->getOperands(), [&](Value value) {
-          return getLatticeElementFor(op, value)->getValue().getValue();
+          return getLatticeElementFor(getProgramPointAfter(op), value)->getValue().getValue();
         }));
 
     auto parent = loops.find(op->getParentOp());
