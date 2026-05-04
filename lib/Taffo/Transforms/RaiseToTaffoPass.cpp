@@ -7,6 +7,7 @@
 #include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/Support/Debug.h"
@@ -41,32 +42,34 @@ public:
       });
 
       addTargetMaterialization(
-          [&](mlir::OpBuilder &builder, mlir::Type resultType,
+          [&](mlir::OpBuilder &builder, mlir::TypeRange resultType,
               mlir::ValueRange inputs,
-              mlir::Location loc) -> std::optional<mlir::Value> {
+              mlir::Location loc) -> llvm::SmallVector<mlir::Value> {
             if (inputs.size() != 1) {
-              return std::nullopt;
+              return {};
             }
 
-            auto CastToRealOp =
+            auto castToRealOp =
                 builder.create<mlir::UnrealizedConversionCastOp>(
                     loc, resultType, inputs);
 
-            return CastToRealOp.getResult(0);
+            llvm::SmallVector<mlir::Value> result;
+            result.push_back(castToRealOp.getResult(0));
+            return result;
           });
 
       addSourceMaterialization(
           [&](mlir::OpBuilder &builder, mlir::Type resultType,
               mlir::ValueRange inputs,
-              mlir::Location loc) -> std::optional<mlir::Value> {
+              mlir::Location loc) -> mlir::Value {
             if (inputs.size() != 1) {
-              return std::nullopt;
+              return {};
             }
-            auto CastToRealOp =
+            auto castToRealOp =
                 builder.create<mlir::UnrealizedConversionCastOp>(
                     loc, resultType, inputs);
 
-            return CastToRealOp.getResult(0);
+            return castToRealOp.getResult(0);
           });
     }
   };
