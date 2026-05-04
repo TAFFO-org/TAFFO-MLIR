@@ -3,7 +3,7 @@
 // might want to clean up later
 #include "Taffo/Dialect/Ops.h"
 #include "Taffo/Dialect/Taffo.h"
-#include "Taffo/Interfaces/InferTaffoRangeInterface.h"
+#include "Taffo/Dialect/OpInterfaces.h"
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
@@ -109,14 +109,14 @@ void TaffoAffineRangeLattice::onUpdate(DataFlowSolver *solver) const {
   //                                dialect)));
 }
 
-void TaffoAffineRangeAnalysis::visitOperation(
+LogicalResult TaffoAffineRangeAnalysis::visitOperation(
     Operation *op, ArrayRef<const TaffoAffineRangeLattice *> operands,
     ArrayRef<TaffoAffineRangeLattice *> results) {
   // If the lattice on any operand is unitialized, bail out.
   if (llvm::any_of(operands, [](const TaffoAffineRangeLattice *lattice) {
         return lattice->getValue().isUninitialized();
       })) {
-    return;
+    return mlir::failure();
   }
 
   if (dyn_cast<LoopLikeOpInterface>(op)) {
@@ -131,8 +131,10 @@ void TaffoAffineRangeAnalysis::visitOperation(
   }
 
   auto inferrable = dyn_cast<InferTaffoRangeInterface>(op);
-  if (!inferrable)
-    return setAllToEntryStates(results);
+  if (!inferrable) {
+    setAllToEntryStates(results);
+    return mlir::failure();
+  }
 
   LLVM_DEBUG(llvm::dbgs() << "[Affine VRA] Inferring aranges for " << *op
                           << "\n");
@@ -157,7 +159,7 @@ void TaffoAffineRangeAnalysis::visitOperation(
       llvm::all_of(op->getResults(),
                    [&](Value v) { return hitTripCount(v); })) {
     LLVM_DEBUG(llvm::dbgs() << "trip count hit for op " << *op << "\n");
-    return;
+    return mlir::failure();
   }
 
   auto joinCallback = [&](Value v, const Var &attrs) {
@@ -199,6 +201,7 @@ void TaffoAffineRangeAnalysis::visitOperation(
   };
 
   inferrable.inferTaffoAffineRanges(argRanges, joinCallback);
+  return mlir::success();
 }
 
 void TaffoAffineRangeAnalysis::visitNonControlFlowArguments(

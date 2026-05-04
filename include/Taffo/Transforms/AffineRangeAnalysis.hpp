@@ -3,6 +3,7 @@
 
 #include "libaffine.hpp"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
+#include "mlir/Support/LLVM.h"
 #include "llvm/Support/Debug.h"
 #include <optional>
 
@@ -94,7 +95,7 @@ public:
 
   /// Visit an operation. Invoke the transfer function on each operation that
   /// implements `InferTaffoRangeInterface`.
-  void visitOperation(Operation *op,
+  mlir::LogicalResult visitOperation(Operation *op,
                       ArrayRef<const TaffoAffineRangeLattice *> operands,
                       ArrayRef<TaffoAffineRangeLattice *> results) override;
 
