@@ -5,12 +5,14 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Block.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/Support/Debug.h"
+#include "mlir/Support/LLVM.h"
 
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -143,9 +145,9 @@ public:
         return failure();
 
       // Extract min, max, and precision
-      auto min = secondConstOp.getValue().dyn_cast<FloatAttr>();
-      auto max = thirdConstOp.getValue().dyn_cast<FloatAttr>();
-      auto precision = fourthConstOp.getValue().dyn_cast<FloatAttr>();
+      auto min = llvm::dyn_cast<FloatAttr>(secondConstOp.getValue());
+      auto max = llvm::dyn_cast<FloatAttr>(thirdConstOp.getValue());
+      auto precision = llvm::dyn_cast<FloatAttr>(fourthConstOp.getValue());
       if (!min || !max || !precision)
         return failure();
 
@@ -358,8 +360,8 @@ public:
         // If the function says this input value should be float,
         // and the operand is not *already* the correct cast,
         // insert a CastToFloatOp with the declaredType.
-        auto floatTy = desiredType.dyn_cast<FloatType>();
-        if (floatTy && operand.getType().isa<taffo::RealType>()) {
+        auto floatTy = llvm::dyn_cast<FloatType>(desiredType);
+        if (floatTy && llvm::isa<taffo::RealType>(operand.getType())) {
           // Skip if operand is already from taffo.cast2float with matching
           // type.
           if (auto castOp = operand.getDefiningOp<taffo::CastToFloatOp>()) {
