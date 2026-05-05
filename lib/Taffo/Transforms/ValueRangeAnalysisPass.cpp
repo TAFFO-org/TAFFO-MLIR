@@ -6,6 +6,7 @@
 #include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 
 #include "Taffo/Dialect/Ops.h"
@@ -214,7 +215,7 @@ public:
       mlir::Value init = std::get<0>(it);
       mlir::Value result = std::get<1>(it);
       RealType resType = llvm::dyn_cast<RealType>(result.getType());
-      RealType initType = init.getType().cast<RealType>();
+      RealType initType = llvm::cast<RealType>(init.getType());
       if (getMSB(resType) > getMSB(initType)) {
         // LLVM_DEBUG(llvm::dbgs()
         //            << "Aligning " << init << " to " << resType << "\n");
