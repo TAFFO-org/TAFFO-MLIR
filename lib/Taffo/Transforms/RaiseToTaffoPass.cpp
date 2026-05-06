@@ -281,7 +281,6 @@ public:
 
       // Iterate over each operand in tandem with the declared result type.
       for (auto it : llvm::enumerate(op.getOperands())) {
-        unsigned i = it.index();
         Value operand = it.value();
 
         // if operand is of type f32 insert an unrealized conversion to
