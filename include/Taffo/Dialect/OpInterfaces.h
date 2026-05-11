@@ -18,6 +18,6 @@ using SetTaffoAffineRangeFn = function_ref<void(Value, const LibAffine::Var &)>;
 
 } // namespace mlir::taffo
 
-#include "Taffo/Interfaces/InferTaffoRangeInterface.h.inc"
+#include "Taffo/Dialect/OpInterfaces.h.inc"
 
 #endif // TAFFO_INTERFACES_INFERTAFFORANGENTVINTERFACE_H

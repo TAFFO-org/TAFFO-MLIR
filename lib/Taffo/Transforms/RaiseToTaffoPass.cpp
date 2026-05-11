@@ -5,11 +5,14 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Block.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/Support/Debug.h"
+#include "mlir/Support/LLVM.h"
 
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -41,32 +44,34 @@ public:
       });
 
       addTargetMaterialization(
-          [&](mlir::OpBuilder &builder, mlir::Type resultType,
+          [&](mlir::OpBuilder &builder, mlir::TypeRange resultType,
               mlir::ValueRange inputs,
-              mlir::Location loc) -> std::optional<mlir::Value> {
+              mlir::Location loc) -> llvm::SmallVector<mlir::Value> {
             if (inputs.size() != 1) {
-              return std::nullopt;
+              return {};
             }
 
-            auto CastToRealOp =
+            auto castToRealOp =
                 builder.create<mlir::UnrealizedConversionCastOp>(
                     loc, resultType, inputs);
 
-            return CastToRealOp.getResult(0);
+            llvm::SmallVector<mlir::Value> result;
+            result.push_back(castToRealOp.getResult(0));
+            return result;
           });
 
       addSourceMaterialization(
           [&](mlir::OpBuilder &builder, mlir::Type resultType,
               mlir::ValueRange inputs,
-              mlir::Location loc) -> std::optional<mlir::Value> {
+              mlir::Location loc) -> mlir::Value {
             if (inputs.size() != 1) {
-              return std::nullopt;
+              return {};
             }
-            auto CastToRealOp =
+            auto castToRealOp =
                 builder.create<mlir::UnrealizedConversionCastOp>(
                     loc, resultType, inputs);
 
-            return CastToRealOp.getResult(0);
+            return castToRealOp.getResult(0);
           });
     }
   };
@@ -140,9 +145,9 @@ public:
         return failure();
 
       // Extract min, max, and precision
-      auto min = secondConstOp.getValue().dyn_cast<FloatAttr>();
-      auto max = thirdConstOp.getValue().dyn_cast<FloatAttr>();
-      auto precision = fourthConstOp.getValue().dyn_cast<FloatAttr>();
+      auto min = llvm::dyn_cast<FloatAttr>(secondConstOp.getValue());
+      auto max = llvm::dyn_cast<FloatAttr>(thirdConstOp.getValue());
+      auto precision = llvm::dyn_cast<FloatAttr>(fourthConstOp.getValue());
       if (!min || !max || !precision)
         return failure();
 
@@ -276,7 +281,6 @@ public:
 
       // Iterate over each operand in tandem with the declared result type.
       for (auto it : llvm::enumerate(op.getOperands())) {
-        unsigned i = it.index();
         Value operand = it.value();
 
         // if operand is of type f32 insert an unrealized conversion to
@@ -355,8 +359,8 @@ public:
         // If the function says this input value should be float,
         // and the operand is not *already* the correct cast,
         // insert a CastToFloatOp with the declaredType.
-        auto floatTy = desiredType.dyn_cast<FloatType>();
-        if (floatTy && operand.getType().isa<taffo::RealType>()) {
+        auto floatTy = llvm::dyn_cast<FloatType>(desiredType);
+        if (floatTy && llvm::isa<taffo::RealType>(operand.getType())) {
           // Skip if operand is already from taffo.cast2float with matching
           // type.
           if (auto castOp = operand.getDefiningOp<taffo::CastToFloatOp>()) {
