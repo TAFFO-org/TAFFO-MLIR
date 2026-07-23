@@ -90,8 +90,8 @@ public:
   /// known bounds.
   void visitNonControlFlowArguments(Operation *op,
                                     const RegionSuccessor &successor,
-                                    ArrayRef<TaffoRangeLattice *> argLattices,
-                                    unsigned firstIndex) override;
+                                    ValueRange nonSuccessorInputs,
+                                    ArrayRef<TaffoRangeLattice *> nonSuccessorInputLattices) override;
 
 private:
   bool hitTripCount(Value v);
