@@ -18,6 +18,7 @@ Install the following dependencies on you system:
 - cmake
 - ninja
 - mold (or gold if you prefer. But mold is a faster linker, useful as llvm compilation is long)
+- clang-format 19 or newer
 
 Make sure that you have at least 110 GB free of disk space if you build llvm in debug mode.
 You could also build llvm in release mode to occupy a lot less space, but it is not recommended if you will develop TAFFO itself.
