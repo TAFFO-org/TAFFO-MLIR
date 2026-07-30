@@ -2,41 +2,21 @@ name: Build and test
 on: [push, pull_request]
 
 env:
-  LLVM_COMMIT: 7dad7ab3c0d29fb9c6b0cf591889789a3cdbcc0a
-  CMAKE_FLAGS: '-DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DMLIR_DIR=$GITHUB_WORKSPACE/llvm-project/prefix/lib/cmake/mlir/ -DLLVM_DIR=$GITHUB_WORKSPACE/llvm-project/prefix/lib/cmake/llvm/ -DLLVM_EXTERNAL_LIT=$GITHUB_WORKSPACE/llvm-project/build/bin/llvm-lit'
+  LLVM_COMMIT: 1f5b6ae89fbc88d22c323fa56d8bdad9f7b695c3
 
 jobs:
-  lint:
-    name: Check formatting
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get Template Code
-        uses: actions/checkout@v6
-      - name: clang-format
-        uses: DoozyX/clang-format-lint-action@v0.6
-        with:
-          source: '.'
-          extensions: 'h,cpp'
-          clangFormatVersion: 9
-
   build:
     name: Build and test
     runs-on: ubuntu-latest
     steps:
-      - name: Configure Environment
-        run: |
-          echo "$GITHUB_WORKSPACE/llvm-project/prefix/bin" >> "$GITHUB_PATH"
-          pip install --upgrade cmake
-      - name: Get Template Code
+      - name: Get TAFFO
         uses: actions/checkout@v6
-        with:
-          path: 'mlir-standalone-template'
       - name: Cache LLVM
         id: cache-llvm
         uses: actions/cache@v5
         with:
-          path: llvm-project
-          key: ${{ runner.os }}-llvm-install-${{ env.LLVM_COMMIT }}
+          path: llvm-project/install_release
+          key: ${{ runner.os }}-llvm-${{ env.LLVM_COMMIT }}-release
       - name: Get LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         uses: actions/checkout@v6
@@ -47,20 +27,25 @@ jobs:
       - name: Install LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: |
-          mkdir $GITHUB_WORKSPACE/llvm-project/build
-          mkdir $GITHUB_WORKSPACE/llvm-project/prefix
-          cd $GITHUB_WORKSPACE/llvm-project/build
-          cmake $GITHUB_WORKSPACE/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/llvm-project/prefix -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_ENABLE_LLD=ON
-          cmake --build . --target install -- -j$(nproc)
-      - name: Sanitizer build
+          cmake -S llvm-project/llvm -B llvm-project/build_release -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/llvm-project/install_release" \
+            -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+            -DLLVM_TARGETS_TO_BUILD=host \
+            -DLLVM_INSTALL_UTILS=ON \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_PARALLEL_LINK_JOBS=1 \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++
+          cmake --build llvm-project/build_release --target install --parallel 2
+      - name: Configure TAFFO
         run: |
-          mkdir $GITHUB_WORKSPACE/mlir-standalone-template/sanitizer-build
-          cd $GITHUB_WORKSPACE/mlir-standalone-template/sanitizer-build
-          cmake $GITHUB_WORKSPACE/mlir-standalone-template -DCMAKE_BUILD_TYPE=Debug -DUSE_SANITIZER='Address;Undefined' ${{ env.CMAKE_FLAGS }}
-          cmake --build . --target check-standalone-opt -- -j$(nproc)
-      - name: Release build
-        run: |
-          mkdir $GITHUB_WORKSPACE/mlir-standalone-template/build
-          cd $GITHUB_WORKSPACE/mlir-standalone-template/build
-          cmake $GITHUB_WORKSPACE/mlir-standalone-template -DCMAKE_BUILD_TYPE=Release ${{ env.CMAKE_FLAGS }}
-          cmake --build . --target check-standalone-opt -- -j$(nproc)
+          cmake -S . -B build_debug -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DLLVM_DIR="$GITHUB_WORKSPACE/llvm-project/install_release/lib/cmake/llvm" \
+            -DMLIR_DIR="$GITHUB_WORKSPACE/llvm-project/install_release/lib/cmake/mlir" \
+            -DLLVM_EXTERNAL_LIT="$GITHUB_WORKSPACE/llvm-project/install_release/bin/llvm-lit"
+      - name: Build TAFFO
+        run: cmake --build build_debug --parallel 2
+      - name: Test TAFFO
+        run: cmake --build build_debug --target check

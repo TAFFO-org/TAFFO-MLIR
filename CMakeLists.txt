@@ -8,6 +8,8 @@ endif()
 
 project(TaffoMLIR LANGUAGES CXX C)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
@@ -67,3 +69,17 @@ endif()
 set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 
 add_subdirectory(test)
+
+# Set project git hooks only outside CI.
+if(NOT DEFINED ENV{GITHUB_WORKSPACE})
+  include(FindClangFormat)
+  set(PROJECT_GIT_HOOKS_DIR "${CMAKE_SOURCE_DIR}/.githooks")
+  execute_process(
+    COMMAND git config --local core.hooksPath "${PROJECT_GIT_HOOKS_DIR}"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    RESULT_VARIABLE _git_cfg_res
+  )
+  if(NOT _git_cfg_res EQUAL 0)
+    message(WARNING "Failed to set core.hooksPath (exit code ${_git_cfg_res})")
+  endif()
+endif()
