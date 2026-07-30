@@ -64,8 +64,10 @@ public:
       solver.load<TaffoAffineRangeAnalysis>();
     }
 
-    if (mlir::failed(solver.initializeAndRun(module)))
+    if (mlir::failed(solver.initializeAndRun(module))) {
       signalPassFailure();
+      return;
+    }
 
     auto result = module->walk([&](mlir::Operation *op) {
       // LLVM_DEBUG(llvm::dbgs() << "Visiting op with type: "
@@ -214,8 +216,10 @@ public:
     for (auto it : llvm::zip(inits, results)) {
       mlir::Value init = std::get<0>(it);
       mlir::Value result = std::get<1>(it);
-      RealType resType = llvm::dyn_cast<RealType>(result.getType());
-      RealType initType = llvm::cast<RealType>(init.getType());
+      auto resType = llvm::dyn_cast<RealType>(result.getType());
+      auto initType = llvm::dyn_cast<RealType>(init.getType());
+      if (!resType || !initType)
+        continue;
       if (getMSB(resType) > getMSB(initType)) {
         // LLVM_DEBUG(llvm::dbgs()
         //            << "Aligning " << init << " to " << resType << "\n");
@@ -253,7 +257,9 @@ public:
     for (auto it : llvm::zip(iterArgs, results)) {
       mlir::Value result = std::get<1>(it);
       mlir::BlockArgument iterArg = std::get<0>(it);
-      RealType resType = llvm::dyn_cast<RealType>(result.getType());
+      auto resType = llvm::dyn_cast<RealType>(result.getType());
+      if (!resType)
+        continue;
 
       // LLVM_DEBUG(llvm::dbgs() << "setting iterArg type " << std::get<0>(it)
       //                         << "to: " << resType << "\n");
@@ -265,7 +271,9 @@ public:
     for (auto it : llvm::zip(parentResults, results)) {
       mlir::Value result = std::get<1>(it);
       mlir::Value parentResult = std::get<0>(it);
-      RealType resType = llvm::dyn_cast<RealType>(result.getType());
+      auto resType = llvm::dyn_cast<RealType>(result.getType());
+      if (!resType)
+        continue;
 
       // LLVM_DEBUG(llvm::dbgs() << "setting parent type " << std::get<0>(it)
       //                         << "to: " << resType << "\n");

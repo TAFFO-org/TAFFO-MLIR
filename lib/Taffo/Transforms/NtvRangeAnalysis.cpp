@@ -122,7 +122,7 @@ mlir::LogicalResult TaffoNtvRangeAnalysis::visitOperation(
         return lattice->getValue().isUninitialized();
       })) {
     LLVM_DEBUG(llvm::dbgs() << "uninitialized operands in op " << *op << "\n");
-    return mlir::failure();
+    return mlir::success();
   }
 
   if (dyn_cast<LoopLikeOpInterface>(op)) {
@@ -140,7 +140,7 @@ mlir::LogicalResult TaffoNtvRangeAnalysis::visitOperation(
   auto inferrable = dyn_cast<InferTaffoRangeInterface>(op);
   if (!inferrable) {
     setAllToEntryStates(results);
-    return mlir::failure();
+    return mlir::success();
   }
 
   LLVM_DEBUG(llvm::dbgs() << "Inferring ranges for " << *op << "\n");
@@ -165,7 +165,7 @@ mlir::LogicalResult TaffoNtvRangeAnalysis::visitOperation(
       llvm::all_of(op->getResults(),
                    [&](Value v) { return hitTripCount(v); })) {
     LLVM_DEBUG(llvm::dbgs() << "trip count hit for op " << *op << "\n");
-    return mlir::failure();
+    return mlir::success();
   }
 
   auto joinCallback = [&](Value v, const NtvRange &attrs) {

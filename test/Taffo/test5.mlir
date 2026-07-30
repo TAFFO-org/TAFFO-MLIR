@@ -1,3 +1,5 @@
+// RUN: taffo-opt --vra-mode=mixed -pass-pipeline='builtin.module(value-range-analysis)' --verify-each %s -o /dev/null
+
 module {
   func.func @simple_constant() -> f32 {
     %cst1 = arith.constant 1.5 : f32
