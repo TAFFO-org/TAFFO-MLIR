@@ -6,7 +6,7 @@ if(POLICY CMP0116)
   cmake_policy(SET CMP0116 OLD)
 endif()
 
-project(taffo LANGUAGES CXX C)
+project(TaffoMLIR LANGUAGES CXX C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
