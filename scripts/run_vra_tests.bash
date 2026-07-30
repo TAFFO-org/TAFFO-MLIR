@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd build
+cd build_debug
 ninja
 cd bin
 
