@@ -116,7 +116,7 @@ LogicalResult TaffoAffineRangeAnalysis::visitOperation(
   if (llvm::any_of(operands, [](const TaffoAffineRangeLattice *lattice) {
         return lattice->getValue().isUninitialized();
       })) {
-    return mlir::failure();
+    return mlir::success();
   }
 
   if (dyn_cast<LoopLikeOpInterface>(op)) {
@@ -133,7 +133,7 @@ LogicalResult TaffoAffineRangeAnalysis::visitOperation(
   auto inferrable = dyn_cast<InferTaffoRangeInterface>(op);
   if (!inferrable) {
     setAllToEntryStates(results);
-    return mlir::failure();
+    return mlir::success();
   }
 
   LLVM_DEBUG(llvm::dbgs() << "[Affine VRA] Inferring aranges for " << *op
@@ -159,7 +159,7 @@ LogicalResult TaffoAffineRangeAnalysis::visitOperation(
       llvm::all_of(op->getResults(),
                    [&](Value v) { return hitTripCount(v); })) {
     LLVM_DEBUG(llvm::dbgs() << "trip count hit for op " << *op << "\n");
-    return mlir::failure();
+    return mlir::success();
   }
 
   auto joinCallback = [&](Value v, const Var &attrs) {

@@ -111,5 +111,5 @@ Once again you could build TAFFO in release mode, but not recommended if you wil
 
 To run the tests, use the following command:
 ```sh
-./scripts/run_vra_tests.bash
+cmake --build build_debug --target check
 ```
