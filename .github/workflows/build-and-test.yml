@@ -11,9 +11,9 @@ jobs:
     steps:
       - name: Get TAFFO
         uses: actions/checkout@v6
-      - name: Cache LLVM
+      - name: Restore LLVM
         id: cache-llvm
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: llvm-project/install_release
           key: ${{ runner.os }}-llvm-${{ env.LLVM_COMMIT }}-release
@@ -38,6 +38,12 @@ jobs:
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++
           cmake --build llvm-project/build_release --target install --parallel 2
+      - name: Save LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: llvm-project/install_release
+          key: ${{ steps.cache-llvm.outputs.cache-primary-key }}
       - name: Configure TAFFO
         run: |
           cmake -S . -B build_debug -G Ninja \
