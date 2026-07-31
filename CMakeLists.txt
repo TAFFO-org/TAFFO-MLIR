@@ -13,8 +13,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
-add_link_options(-fuse-ld=lld -fsanitize=address)
-add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
 
 if(DEFINED LLVM_PATH)
   get_filename_component(LLVM_ABS_PATH ${LLVM_PATH} ABSOLUTE)
