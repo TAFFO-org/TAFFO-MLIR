@@ -37,7 +37,7 @@ Clone and cd in the repository with:
 
 Shallow clone the llvm repository at the specific know-working commit:
 ```
-git clone --depth 1 --revision 1f5b6ae89fbc88d22c323fa56d8bdad9f7b695c3 https://github.com/llvm/llvm-project.git
+git clone --depth 1 --revision 1053047a4be7d1fece3adaf5e7597f838058c947 https://github.com/llvm/llvm-project.git
 ```
 
 Build in debug mode with the commands below.
