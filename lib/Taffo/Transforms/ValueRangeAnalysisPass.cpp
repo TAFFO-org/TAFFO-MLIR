@@ -6,8 +6,8 @@
 #include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
+#include <llvm/Support/Casting.h>
+#include <llvm/Support/CommandLine.h>
 
 #include "Taffo/Dialect/Ops.h"
 #include "Taffo/Transforms/AffineRangeAnalysis.hpp"
@@ -77,7 +77,7 @@ public:
         return mlir::WalkResult::advance();
       }
 
-      if (!llvm::isa<TaffoDialect>(op->getDialect()) ||
+      if (!op->getDialect() || !llvm::isa<TaffoDialect>(op->getDialect()) ||
           llvm::isa<CastToFloatOp>(op)) {
         // LLVM_DEBUG(llvm::dbgs() << "Skipping op: " << *op << "\n");
         return mlir::WalkResult::advance();
