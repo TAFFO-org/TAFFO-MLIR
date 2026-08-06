@@ -8,6 +8,12 @@ set(LIBS
         ${conversion_libs}
         MLIROptLib
         MLIRTaffo
+        MLIRIR
+	MLIRPass
+	MLIRSupport
+	MLIRTransforms
+	MLIRRegisterAllPasses
+	MLIRRegisterAllDialects
         )
 add_llvm_executable(taffo-opt taffo-opt.cpp)
 

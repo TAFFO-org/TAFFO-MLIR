@@ -46,10 +46,11 @@ static int64_t estimateTripCount(Operation *op) {
   auto forOp = dyn_cast<scf::ForOp>(op);
 
   if (forOp) {
-    std::optional<int64_t> tripCount = constantTripCount(
-        forOp.getLowerBound(), forOp.getUpperBound(), forOp.getStep());
+    std::optional<llvm::APInt> tripCount = constantTripCount(
+        forOp.getLowerBound(), forOp.getUpperBound(), forOp.getStep(),
+        /*isSigned=*/false, /*computeUbMinusLb=*/nullptr);
     if (tripCount)
-      return tripCount.value();
+      return tripCount->getSExtValue();
   }
 
   op->emitWarning(
@@ -191,7 +192,8 @@ mlir::LogicalResult TaffoNtvRangeAnalysis::visitOperation(
 
 void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
     Operation *op, const RegionSuccessor &successor,
-    ArrayRef<TaffoRangeLattice *> argLattices, unsigned firstIndex) {
+    ValueRange nonSuccessorInputs,
+    ArrayRef<TaffoRangeLattice *> nonSuccessorInputLattices) {
 
   if (dyn_cast<LoopLikeOpInterface>(op)) {
     auto search = loops.find(op);
@@ -247,7 +249,7 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
       LLVM_DEBUG(llvm::dbgs()
                  << "Inferred range: [" << attrs.first.convertToDouble() << ", "
                  << attrs.second.convertToDouble() << "]\n");
-      TaffoRangeLattice *lattice = argLattices[arg.getArgNumber()];
+      TaffoRangeLattice *lattice = getLatticeElement(arg);
       TaffoValueRange oldRange = lattice->getValue();
 
       ChangeResult changed = lattice->join(TaffoValueRange{attrs});
@@ -260,5 +262,5 @@ void TaffoNtvRangeAnalysis::visitNonControlFlowArguments(
   }
 
   return SparseForwardDataFlowAnalysis::visitNonControlFlowArguments(
-      op, successor, argLattices, firstIndex);
+      op, successor, nonSuccessorInputs, nonSuccessorInputLattices);
 }

@@ -2,7 +2,7 @@ name: Build and test
 on: [push, pull_request]
 
 env:
-  LLVM_COMMIT: 1f5b6ae89fbc88d22c323fa56d8bdad9f7b695c3
+  LLVM_COMMIT: 1053047a4be7d1fece3adaf5e7597f838058c947
 
 jobs:
   build:
